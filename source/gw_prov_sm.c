@@ -62,9 +62,11 @@
 #include <pthread.h>
 #include "sys_types.h"
 #include "sys_nettypes.h"
-//#include "sys_utils.h"
+#include "sys_utils.h"
 #include "gw_prov_abstraction.h"
 #include "Tr69_Tlv.h"
+#include <autoconf.h>
+#include "docsis_esafe_db.h"
 
 /**************************************************************************/
 /*      DEFINES:                                                          */
@@ -77,6 +79,10 @@
 #define IFNAME_ETH_0    "eth0"
 
 /*! New implementation*/
+
+#define BRMODE_ROUTER 0
+#define BRMODE_PRIMARY_BRIDGE   3
+#define BRMODE_GLOBAL_BRIDGE 2
 
 #define ARGV_NOT_EXIST 0
 #define ARGV_DISABLED 1
@@ -157,14 +163,35 @@ static int sysevent_fd_gs;
 static token_t sysevent_token_gs;
 static pthread_t sysevent_tid;
 static int phylink_wan_state = 0;
-static int bridge_mode = 0;
 static int once = 0;
+static int bridge_mode = BRMODE_ROUTER;
+static int active_mode = BRMODE_ROUTER;
 
 static GwTlvsLocalDB_t gwTlvsLocalDB;
 
 /**************************************************************************/
 /*      LOCAL FUNCTIONS:                                                  */
 /**************************************************************************/
+static void GWP_EnterBridgeMode(void);
+static void GWP_EnterRouterMode(void);
+
+static int getSyseventBridgeMode(int erouterMode, int bridgeMode) {
+        
+    //Erouter mode takes precedence over bridge mode. If erouter is disabled, 
+    //global bridge mode is returned. Otherwise partial bridge or router  mode
+    //is returned based on bridge mode. Partial bridge keeps the wan active
+    //for networks other than the primary.
+    // router = 0
+    // global bridge = 2
+    // partial (pseudo) = 3
+	
+#ifdef CONFIG_PRIMARY_NET_BRIDGE_MODE
+    return erouterMode ? (bridgeMode ? BRMODE_PRIMARY_BRIDGE : BRMODE_ROUTER) : BRMODE_GLOBAL_BRIDGE;
+#else 
+    return erouterMode ? (bridgeMode ? BRMODE_GLOBAL_BRIDGE : BRMODE_ROUTER) : BRMODE_GLOBAL_BRIDGE;
+#endif
+
+}
 
 
 /**************************************************************************/
@@ -198,7 +225,6 @@ static void GW_Local_PrintHexStringToStderr(Uint8 *str, Uint16 len)
     }
     fprintf(stderr, "'\n");
  }
-
 int IsFileExists(const char *fname)
 {
     FILE *file;
@@ -510,13 +536,9 @@ static STATUS GW_SetTr069PaDataInTLV11Buffer(Uint8* buf, Int* len)
     if(gwTlvsLocalDB.tlv2_flags.ConnectionRequestPassword_modified)
         GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_CONNREQ_PASSWORD, (Uint8*)(gwTlvsLocalDB.tlv2.ConnectionRequestPassword));
 
-    // ACSOverride (corresponds to MIB saTr069ClientAllowDocsisConfig) is not implmented yet, RTian 04/07/2014
-#if (0)  
     // ACSOverride
-    //TLV11 saTR069ClientAllowDocsisConfig is opposite of ACSOverride
     if(gwTlvsLocalDB.tlv2_flags.AcsOverride_modified)
-        GW_SetTr069PaMibBoolean(&ptr, GW_TR069_MIB_SUB_OID_ALLOW_DOCSIS_CONFIG, (Uint8)(gwTlvsLocalDB.tlv2.ACSOverride ? 0x00 : 0x01));
-#endif
+        GW_SetTr069PaMibBoolean(&ptr, GW_TR069_MIB_SUB_OID_ALLOW_DOCSIS_CONFIG, (Uint8)(gwTlvsLocalDB.tlv2.ACSOverride));
 
     *len = ptr - buf;
 
@@ -551,7 +573,9 @@ static STATUS GW_UpdateTr069Cfg(void)
         ret = sendTLV11toSnmpAgent((void *)Snmp_Tlv11Buf, (int)Snmp_Tlv11BufLen );
         
     }
-return ret;
+
+    return ret;
+
 #if 0
         SnmpaIfResponse_t *tlv11Resp = (SnmpaIfResponse_t*)malloc(sizeof(SnmpaIfResponse_t)+sizeof(int));
         if (!tlv11Resp)
@@ -594,6 +618,10 @@ label_nok:
     return STATUS_NOK;
 #endif 
 }
+
+/**************************************************************************/
+/*      LOCAL FUNCTIONS:                                                  */
+/**************************************************************************/
 
 /**************************************************************************/
 /*! \fn static STATUS GWP_SysCfgGetInt
@@ -685,12 +713,9 @@ static void GWP_DocsisInited(void)
     initializeDocsisInterface();
 
     /* Register the eRouter  */
-    
-    	getNetworkDeviceMacAddress(&macAddr);
-    	
-    
+    getNetworkDeviceMacAddress(&macAddr);
+
     eSafeDevice_Initialize(&macAddr);
-    
        
     eSafeDevice_SetProvisioningStatusProgress(ESAFE_PROV_STATE_NOT_INITIATED_extIf);
 	
@@ -727,6 +752,7 @@ static void GWP_EnableERouter(void)
     //bridge_mode = 0;
     //system("sysevent set bridge_mode 0");
     //system("sysevent set forwarding-restart");
+	GWP_EnterRouterMode();
     system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string router");
 
     printf("******************************");
@@ -734,15 +760,22 @@ static void GWP_EnableERouter(void)
     printf("******************************");
 }
 
+//Actually enter router mode
 static void GWP_EnterRouterMode(void)
 {
-    
+    char sysevent_cmd[80];
     if (eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf)
          return;
-    
-    bridge_mode = 0;
+    //mipieper - removed for psuedo bridge.
+//     GWP_UpdateEsafeAdminMode(eRouterMode);
+//     DOCSIS_ESAFE_SetErouterOperMode(DOCESAFE_EROUTER_OPER_NOIPV4_NOIPV6);
+//     DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_IN_PROGRESS);
+
+//    bridge_mode = 0;
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", BRMODE_ROUTER);
+    system(sysevent_cmd);
     system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
-    system("sysevent set bridge_mode 0");
+    
     system("sysevent set forwarding-restart");
 }
 
@@ -762,10 +795,13 @@ static void GWP_DisableERouter(void)
     /* Reset Switch, to remove all VLANs */ 
     eSafeDevice_SetProvisioningStatusProgress(ESAFE_PROV_STATE_NOT_INITIATED_extIf);
    	
-    char sysevent_cmd[80];
+//    char sysevent_cmd[80];
 //     snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", bridge_mode);
 //     system(sysevent_cmd);
 //     system("sysevent set forwarding-restart");
+    
+    
+    GWP_EnterBridgeMode();
     system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string bridge-static");
 
     printf("******************************");
@@ -775,8 +811,31 @@ static void GWP_DisableERouter(void)
 
 static void GWP_EnterBridgeMode(void)
 {
+    //GWP_UpdateEsafeAdminMode(DOCESAFE_ENABLE_DISABLE);
+    //DOCSIS_ESAFE_SetErouterOperMode(DOCESAFE_EROUTER_OPER_DISABLED);
+    /* Reset Switch, to remove all VLANs */ 
+    // GSWT_ResetSwitch();
+    //DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_NOT_INITIATED);
+    char sysevent_cmd[80];
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", active_mode);
+    system(sysevent_cmd);
     system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
-    system("sysevent set bridge_mode 2");
+    
+    system("sysevent set forwarding-restart");
+}
+
+static void GWP_EnterPseudoBridgeMode(void)
+{
+        if (eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf)
+        return;
+    
+//     GWP_UpdateEsafeAdminMode(eRouterMode);
+//     DOCSIS_ESAFE_SetErouterOperMode(DOCESAFE_EROUTER_OPER_NOIPV4_NOIPV6);
+//     DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_IN_PROGRESS);
+    char sysevent_cmd[80];
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", BRMODE_PRIMARY_BRIDGE);
+    system(sysevent_cmd);
+    system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
     system("sysevent set forwarding-restart");
 }
 
@@ -793,18 +852,23 @@ static void GWP_UpdateERouterMode(void)
     printf("%s: %d->%d\n", __func__, oldRouterMode, eRouterMode);
     if (oldRouterMode != eRouterMode)
     {
-       
+        
+
+        
         if (eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf)
         {
             // This means we are switching from router mode to bridge mode, set bridge_mode
             // to 2 since user did not specify it
             bridge_mode = 2;
             webui_started = 0;
+            active_mode = BRMODE_GLOBAL_BRIDGE; //This is set so that the callback from LanMode does not trigger another transition.
+                                                //The code here will here will handle it.
+            system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string bridge-static");
+            
             GWP_DisableERouter();
             
-            GWP_SysCfgSetInt("last_erouter_mode", DOCESAFE_ENABLE_DISABLE_extIf);  // save the new mode only
+            GWP_SysCfgSetInt("last_erouter_mode", eRouterMode);  // save the new mode only
             syscfg_commit();
-            
         }
         else
         {
@@ -816,11 +880,14 @@ static void GWP_UpdateERouterMode(void)
             //{
                 // erouter disabled by user, keep it disabled
                 //mipieper -- dont disable erouter on bridge mode 
-                //eRouterMode = DOCESAFE_ENABLE_DISABLE_extIf;
+                //eRouterMode = DOCESAFE_ENABLE_DISABLE;
             //}
             /*else*/ if (oldRouterMode == DOCESAFE_ENABLE_DISABLE_extIf) // from disable to enable
             {
                 webui_started = 0;
+                active_mode = BRMODE_ROUTER; //This is set so that the callback from LanMode does not trigger another transition.
+                                                    //The code here will here will handle it.
+                system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string router");
                 GWP_EnableERouter();
             }
             else  // remain enabled, switch mode
@@ -846,30 +913,57 @@ static void GWP_ProcessUtopiaRestart(void)
     // This function is called when "system-restart" event is received, This
     // happens when WEBUI change bridge configuration. We do not restart the
     // whole system, only routing/bridging functions only
- 
-    // TODO:mipieper, figure out how to handle bridge mode transition
-    //system("sysevent set forwarding-stop");
+
+    int oldActiveMode = active_mode;
 
     bridge_mode = GWP_SysCfgGetInt("bridge_mode");
-    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
+    //int loc_eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
+    
+    active_mode = getSyseventBridgeMode(eRouterMode, bridge_mode);
+
+    printf("bridge_mode = %d, erouter_mode = %d, active_mode = %d\n", bridge_mode, eRouterMode, active_mode);
+
+    if (oldActiveMode == active_mode) return; // Exit if no transition
+    
     webui_started = 0;
-
-    printf("bridge_mode = %d, erouter_mode = %d\n", bridge_mode, eRouterMode);
-
-    if (bridge_mode == 1 || bridge_mode == 2)
-    {
-        
-        GWP_EnterBridgeMode();
+    switch ( active_mode) {
+     
+        case BRMODE_ROUTER:
+            if (oldActiveMode == BRMODE_GLOBAL_BRIDGE) {
+                GWP_EnableERouter();
+            } else {
+                GWP_EnterRouterMode();
+            }
+            break;
+        case BRMODE_GLOBAL_BRIDGE:
+            GWP_DisableERouter();
+            break;
+        case BRMODE_PRIMARY_BRIDGE:
+            GWP_EnterBridgeMode();
+            break;
+        default:
+        break;
     }
-    else if (eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf) // TLV202 only allows bridge mode
-    {
-        bridge_mode = 2;
-        GWP_EnterBridgeMode();
-    }
-    else
-    {
-        GWP_EnterRouterMode();
-    }
+    
+    
+//     if (eRouterMode == DOCESAFE_ENABLE_DISABLE) // TLV202 only allows bridge mode
+//     {
+//         //bridge_mode = 2;
+//         //mipieper - removed for pseudo bridge mode support, as syscfg bridge_mode cannot
+//     //cause a global bridge mode transition
+//         //GWP_EnterBridgeMode();
+//     }
+//     else
+//     {
+//         webui_started = 0;
+//         if (bridge_mode == 1 || bridge_mode == 2)
+//         {
+//             //loc_eRouterMode = DOCESAFE_ENABLE_DISABLE; // honor user's choice for bridge mode
+//             GWP_EnterPseudoBridgeMode();
+//         } else { 
+//             GWP_EnterRouterMode();
+//         }
+//     }
 }
 
 /**************************************************************************/
@@ -1095,6 +1189,18 @@ static void *GWP_sysevent_threadfunc(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "tr_" ER_NETDEVNAME "_dhcpv6_client_v6addr",  &ipv6_status_asyncid);
 
     sysevent_set_options(sysevent_fd, sysevent_token, "system-restart", TUPLE_FLAG_EVENT);
+    
+//     sysevent_get(sysevent_fd, sysevent_token, "homesecurity_lan_l3net", buf, sizeof(buf));
+//     if (buf[0] != '\0' && atoi(buf))
+//         netids_inited = 1;
+//     
+//     sysevent_get(sysevent_fd, sysevent_token, "snmp_subagent-status", buf, sizeof(buf));
+//     if (buf[0] != '\0' && strcmp("started",buf)==0 )
+//         snmp_inited = 1;
+//     
+//     if(netids_inited && snmp_inited && !factory_mode) {
+//         LAN_start();
+//     }
 
     for (;;)
     {
@@ -1285,7 +1391,7 @@ static int GWP_act_DocsisLinkUp_callback()
     printf("\n**************************\n\n");
 
     
-    if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf && bridge_mode == 0)
+    if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf /*&& bridge_mode == 0*/) // mipieper - pseduo bridge support
     {
         printf("Starting wan service\n");
         system("sysevent set wan-start");
@@ -1503,11 +1609,13 @@ static int GWP_act_BefCfgfileEntry_callback()
 static int GWP_act_DocsisInited_callback()
 {
     esafeErouterOperModeExtIf_e operMode;
+    DOCSIS_Esafe_Db_Enable_e eRouterModeTmp; 
     char macstr[20];
     Uint8 lladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
     Uint8 soladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
     char soladdrKey[64];
     char soladdrStr[64];
+    int sysevent_bridge_mode = 0;
 
     /* Docsis initialized */
     printf("Got DOCSIS Initialized");
@@ -1536,14 +1644,18 @@ static int GWP_act_DocsisInited_callback()
 
     bridge_mode = GWP_SysCfgGetInt("bridge_mode");
     eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
-    if (bridge_mode == 0)
-    {
-        
-        bridge_mode = eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf ? 2 : 0;
-    }
+    
+    sysevent_bridge_mode = getSyseventBridgeMode(eRouterMode, bridge_mode);
+    active_mode = sysevent_bridge_mode;
+//     mipieper - remove for pseudo bridge support. Could add back depending on policy. 
+//     if (bridge_mode == 0)
+//     {
+//
+//         bridge_mode = eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf ? 2 : 0;
+//     }
 
     char sysevent_cmd[80];
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", bridge_mode);
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", sysevent_bridge_mode);
     system(sysevent_cmd);
 
     GWP_DocsisInited();
@@ -1551,11 +1663,15 @@ static int GWP_act_DocsisInited_callback()
     system("sysevent set docsis-initialized 1");
 
     /* Must set the ESAFE Enable state before replying to the DocsisInit event */
-    GWP_UpdateEsafeAdminMode(eRouterMode);
+    eRouterModeTmp = eRouterMode;
+//      mipieper - remove for pseudo bridge support. Partial bridge should not force global bridge.
+//     if(bridge_mode == 2) 
+//         eRouterModeTmp = DOCESAFE_ENABLE_DISABLE;
+    GWP_UpdateEsafeAdminMode(eRouterModeTmp);
 
     /* Set operMode */
     //if (eRouterMode == DOCESAFE_ENABLE_DISABLE)
-    if (eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf)
+    if (eRouterModeTmp == DOCESAFE_ENABLE_DISABLE_extIf)
     {
         /* Disabled */
         operMode = DOCESAFE_EROUTER_OPER_DISABLED_extIf;
@@ -1580,15 +1696,8 @@ static int GWP_act_DocsisInited_callback()
     printf("Got Docsis INIT - replying");
    
     notifyDocsisInitializedResponse();
-/*
-    sysevent_fd = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov", &sysevent_token);
 
-    if (sysevent_fd >= 0)
-    {
-        system("sysevent set phylink_wan_state down");
-        pthread_create(&sysevent_tid, NULL, GWP_sysevent_threadfunc, NULL);
-    }
- */   
+    
     //calcualte erouter base solicited node address
    
     getInterfaceLinkLocalAddress(ER_NETDEVNAME, lladdr);
@@ -1716,7 +1825,7 @@ static void LAN_start() {
     int i;
     char buf[10];
     
-    if (bridge_mode == 0)
+    if (bridge_mode == 0 && eRouterMode != 0) // mipieper - add erouter check for pseudo bridge. Can remove if bridge_mode is forced in response to erouter_mode.
     {
         printf("Utopia starting lan...\n");
         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "lan-start", "", 0);
