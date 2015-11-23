@@ -72,7 +72,7 @@
 /*      DEFINES:                                                          */
 /**************************************************************************/
 
-#define ERNETDEV_MODULE "/fss/gw/lib/modules/2.6.39.3/drivers/net/erouter_ni.ko"
+#define ERNETDEV_MODULE "/fss/gw/lib/modules/3.12.14/drivers/net/erouter_ni.ko"
 #define NETUTILS_IPv6_GLOBAL_ADDR_LEN     	 128
 #define ER_NETDEVNAME "erouter0"
 #define IFNAME_WAN_0    "wan0"
