@@ -146,6 +146,7 @@ static void LAN_start();
 
 
 static int snmp_inited = 0;
+static int pnm_inited = 0;
 static int netids_inited = 0;
 static int gDocTftpOk = 0;
 static int hotspot_started = 0;
@@ -1172,6 +1173,7 @@ static void *GWP_sysevent_threadfunc(void *data)
     async_id_t ipv6_dhcp_asyncid;
     async_id_t wan_status_asyncid;
     async_id_t ipv6_prefix_asyncid;
+    async_id_t pnm_asyncid;
 
     char buf[10];
     
@@ -1187,6 +1189,7 @@ static void *GWP_sysevent_threadfunc(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "ipv6_prefix",  &ipv6_prefix_asyncid);
     sysevent_setnotification(sysevent_fd, sysevent_token, "bridge-status",  &bridge_status_asyncid);
     sysevent_setnotification(sysevent_fd, sysevent_token, "tr_" ER_NETDEVNAME "_dhcpv6_client_v6addr",  &ipv6_status_asyncid);
+    sysevent_setnotification(sysevent_fd, sysevent_token, "pnm-status",  &pnm_asyncid);
 
     sysevent_set_options(sysevent_fd, sysevent_token, "system-restart", TUPLE_FLAG_EVENT);
     
@@ -1262,18 +1265,27 @@ static void *GWP_sysevent_threadfunc(void *data)
                 printf("gw_prov_sm: got system restart\n");
                 GWP_ProcessUtopiaRestart();
             } 
-            else if (strcmp(name, "snmp_subagent-status") == 0 && !snmp_inited)
+            else if (strcmp(name, "pnm-status") == 0)
+            {
+                pnm_inited = 1;
+                if (netids_inited) {
+                        LAN_start();
+                }
+            }
+            /*else if (strcmp(name, "snmp_subagent-status") == 0 && !snmp_inited)
             {
                 snmp_inited = 1;
                 if (netids_inited) {
                     if(!factory_mode)
                         LAN_start();
                 }
-            } 
+            }*/ 
             else if (strcmp(name, "primary_lan_l3net") == 0)
             {
-                if (snmp_inited)
+                if (pnm_inited)
+                 {
                     LAN_start();
+                 }
                 netids_inited = 1;
             }
             else if (strcmp(name, "lan-status") == 0 || strcmp(name, "bridge-status") == 0 ) 
