@@ -1621,7 +1621,8 @@ static int GWP_act_BefCfgfileEntry_callback()
 static int GWP_act_DocsisInited_callback()
 {
     esafeErouterOperModeExtIf_e operMode;
-    DOCSIS_Esafe_Db_Enable_e eRouterModeTmp; 
+    //DOCSIS_Esafe_Db_Enable_e eRouterModeTmp; 
+    DOCSIS_Esafe_Db_extIf_e eRouterModeTmp;
     char macstr[20];
     Uint8 lladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
     Uint8 soladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
