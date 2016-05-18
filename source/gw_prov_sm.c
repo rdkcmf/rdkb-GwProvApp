@@ -1773,7 +1773,11 @@ static int GWP_act_ProvEntry_callback()
     /* Register on docsis Init event */
    
     registerDocsisInitEvents(); 
+#ifdef INTEL_PUMA7 
     system("/etc/utopia/utopia_init.sh");
+#else
+    printf("utopia_init.sh for XB3 is called from pcd file\n");	
+#endif
 
     syscfg_init();
     
