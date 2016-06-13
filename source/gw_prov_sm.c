@@ -65,9 +65,6 @@
 #include <sysevent/sysevent.h>
 #include <syscfg/syscfg.h>
 #include <pthread.h>
-#include "sys_types.h"
-#include "sys_nettypes.h"
-#include "sys_utils.h"
 #include "gw_prov_abstraction.h"
 #include "Tr69_Tlv.h"
 #include <autoconf.h>
