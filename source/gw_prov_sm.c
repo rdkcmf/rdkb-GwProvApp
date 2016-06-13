@@ -65,9 +65,6 @@
 #include <sysevent/sysevent.h>
 #include <syscfg/syscfg.h>
 #include <pthread.h>
-#include "sys_types.h"
-#include "sys_nettypes.h"
-#include "sys_utils.h"
 #include "gw_prov_abstraction.h"
 #include "Tr69_Tlv.h"
 #include <autoconf.h>
@@ -167,7 +164,6 @@ static TlvParseCallbackStatusExtIf_e GW_Tr069PaSubTLVParse(Uint8 type, Uint16 le
 static STATUS GW_SetTr069PaDataInTLV11Buffer(Uint8* buf, Int* len);
 static STATUS GW_UpdateTr069Cfg(void);
 static void check_lan_wan_ready();
-
 //static TlvParseCallbackStatus_e gotEnableType(Uint8 type, Uint16 length, const Uint8* value);
 static TlvParseCallbackStatusExtIf_e GW_setTopologyMode(Uint8 type, Uint16 length, const Uint8* value);
 
@@ -1799,6 +1795,7 @@ void GWP_Util_get_shell_output( char * cmd, char *out, int len )
 }
 
 /* GWP_UpdateTr069CfgThread() */
+#if !defined(_PLATFORM_RASPBERRYPI_)
 void GWP_UpdateTr069CfgThread( void *data )
 {
 	int 	IsNeedtoProceedFurther    = TRUE;
@@ -1912,7 +1909,7 @@ void GWP_UpdateTr069CfgThread( void *data )
 	
 	GWPROV_PRINT(" Exit %s \n", __FUNCTION__);
 }
-
+#endif
 #if !defined(_PLATFORM_RASPBERRYPI_)
 /**************************************************************************/
 /*! \fn int GWP_act_DocsisCfgfile(SME_APP_T *app, SME_EVENT_T *event);
@@ -2200,6 +2197,8 @@ static int GWP_act_DocsisInited_callback()
 //     }
 #if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
 	printf("Not Initializing bridge_mode and eRouterMode for XB3\n");
+#elif defined(_PLATFORM_RASPBERRYPI_)
+    printf("Not Initializing bridge_mode and eRouterMode for Raspberry Pi\n");
 #else
     bridge_mode = GWP_SysCfgGetInt("bridge_mode");
     eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
@@ -2499,7 +2498,7 @@ static void LAN_start() {
 int main(int argc, char *argv[])
 {
     printf("Started gw_prov_utopia\n");
-
+#if !defined(_PLATFORM_RASPBERRYPI_)
     #ifdef FEATURE_SUPPORT_RDKLOG
        setenv("LOG4C_RCPATH","/rdklogger",1);
        rdk_logger_init(DEBUG_INI_NAME);
@@ -2535,11 +2534,18 @@ int main(int argc, char *argv[])
 #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
     obj->pGW_SetTopologyMode = GW_setTopologyMode;
 #endif
+
     GWPROV_PRINT(" Creating Event Handler\n");
     /* Command line - ignored */
     SME_CreateEventHandler(obj);
     GWPROV_PRINT(" Creating Event Handler over\n");
+#else
+    GWP_act_ProvEntry_callback();
+    GWP_act_DocsisInited_callback();
 
+    (void) pthread_join(sysevent_tid, NULL);
+    (void) pthread_join(linkstate_tid, NULL);
+#endif
     return 0;
 }
 
