@@ -65,9 +65,6 @@
 #include <sysevent/sysevent.h>
 #include <syscfg/syscfg.h>
 #include <pthread.h>
-#include "sys_types.h"
-#include "sys_nettypes.h"
-#include "sys_utils.h"
 #include "gw_prov_abstraction.h"
 #include "Tr69_Tlv.h"
 #include <autoconf.h>
@@ -167,7 +164,7 @@ static TlvParseCallbackStatusExtIf_e GW_Tr069PaSubTLVParse(Uint8 type, Uint16 le
 static STATUS GW_SetTr069PaDataInTLV11Buffer(Uint8* buf, Int* len);
 static STATUS GW_UpdateTr069Cfg(void);
 static void check_lan_wan_ready();
-
+int GWP_SendIoctlToPpDev( unsigned int cmd, void* data);
 //static TlvParseCallbackStatus_e gotEnableType(Uint8 type, Uint16 length, const Uint8* value);
 static TlvParseCallbackStatusExtIf_e GW_setTopologyMode(Uint8 type, Uint16 length, const Uint8* value);
 
@@ -2200,6 +2197,8 @@ static int GWP_act_DocsisInited_callback()
 //     }
 #if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
 	printf("Not Initializing bridge_mode and eRouterMode for XB3\n");
+#elif defined(_PLATFORM_RASPBERRYPI_)
+    printf("Not Initializing bridge_mode and eRouterMode for Raspberry Pi\n");
 #else
     bridge_mode = GWP_SysCfgGetInt("bridge_mode");
     eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
@@ -2456,6 +2455,39 @@ static int GWP_act_DocsisTftpOk_callback(){
 }*/
 #endif
 
+/**************************************************************************/
+/*! \fn int GWP_SendIoctlToPpDev( unsigned int cmd, void* data)
+ **************************************************************************
+ *  \brief helper function to make IOCTL calls to PP_DEV 
+ *  \param[in] IOCTL integer, data
+ *  \return STATUS
+ **************************************************************************/
+int GWP_SendIoctlToPpDev( unsigned int cmd, void* data)
+{
+   Int32 rc;
+   Int32 pp_fd;
+
+   GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
+
+    if ( ( pp_fd = open ( "/dev/pp" , O_RDWR ) ) < 0 )
+    {
+        GWPROV_PRINT(" Error in open PP driver %d\n", pp_fd);
+        close(pp_fd);
+        return -1;
+    }
+
+    /* Send Command to PP driver */
+    if ((rc = ioctl(pp_fd, cmd, data)) != 0)
+    {
+        GWPROV_PRINT(" Error ioctl %d return with %d\n", cmd, rc);
+        close(pp_fd);
+        return -1;
+    }
+
+    close(pp_fd);
+    return 0;
+
+}
 static void LAN_start() {
     int i;
     char buf[10];
@@ -2535,6 +2567,8 @@ int main(int argc, char *argv[])
 #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
     obj->pGW_SetTopologyMode = GW_setTopologyMode;
 #endif
+	obj->pGW_SendIoctlToPpDev = GWP_SendIoctlToPpDev;
+
     GWPROV_PRINT(" Creating Event Handler\n");
     /* Command line - ignored */
     SME_CreateEventHandler(obj);
