@@ -186,10 +186,29 @@ typedef void (*fpDocsisInited)();
 typedef void (*fpProvEntry)();
 typedef void (*fpDocsisEnabled)(Uint8);
 typedef void (*fpGW_Tr069PaSubTLVParse)(Uint8 type, Uint16 length, const Uint8* value);
+#ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
+typedef void (*fpGW_SetTopologyMode)(Uint8 type, Uint16 length, const Uint8* value);
+#endif
 
 /*! \var typedef struct __appCallBack 
 *   \brief struct of pointers to the function pointers of callback functions.
 */
+#ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
+typedef struct __appCallBack
+{
+	fpDocsisLinkDown_1 pGWP_act_DocsisLinkDown_1;
+	fpDocsisLinkDown_2 pGWP_act_DocsisLinkDown_2;
+	fpDocsisLinkUp pGWP_act_DocsisLinkUp;
+	fpDocsisCfgfile pGWP_act_DocsisCfgfile;
+	fpDocsisTftpOk pGWP_act_DocsisTftpOk;
+	fpBefCfgfileEntry pGWP_act_BefCfgfileEntry;
+	fpDocsisInited pGWP_act_DocsisInited;
+	fpProvEntry pGWP_act_ProvEntry;
+	fpDocsisEnabled pDocsis_gotEnable;
+	fpGW_Tr069PaSubTLVParse pGW_Tr069PaSubTLVParse;
+	fpGW_SetTopologyMode pGW_SetTopologyMode;
+}appCallBack;
+#else
 typedef struct __appCallBack
 {
 	fpDocsisLinkDown_1 pGWP_act_DocsisLinkDown_1;
@@ -203,7 +222,7 @@ typedef struct __appCallBack
         fpDocsisEnabled pDocsis_gotEnable;
         fpGW_Tr069PaSubTLVParse pGW_Tr069PaSubTLVParse;
 }appCallBack;
-
+#endif
  /*
  * Function Definitions
  */
