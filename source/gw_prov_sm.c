@@ -74,6 +74,8 @@
 #define ER_NETDEVNAME "erouter0"
 #define IFNAME_WAN_0    "wan0"
 #define IFNAME_ETH_0    "eth0"
+#define TLV202_42_FAVOR_DEPTH 1
+#define TLV202_42_FAVOR_WIDTH 2
 
 /*! New implementation*/
 
@@ -133,6 +135,7 @@ static STATUS GW_UpdateTr069Cfg(void);
 static void check_lan_wan_ready();
 
 //static TlvParseCallbackStatus_e gotEnableType(Uint8 type, Uint16 length, const Uint8* value);
+static TlvParseCallbackStatusExtIf_e GW_setTopologyMode(Uint8 type, Uint16 length, const Uint8* value);
 
 /* New implementation !*/
 static void LAN_start();
@@ -615,6 +618,28 @@ static STATUS GW_UpdateTr069Cfg(void)
 label_nok:
     return STATUS_NOK;
 #endif 
+}
+static TlvParseCallbackStatusExtIf_e GW_setTopologyMode(Uint8 type, Uint16 length, const Uint8* value)
+{
+    Uint8 tpMode = *value;
+    TlvParseCallbackStatusExtIf_e st = TLV_PARSE_CALLBACK_OK_EXTIF;
+    char cmd[64] = {0};
+
+    printf("TLV %d, Len %d : Topology Mode", type, length);
+
+    if ( (tpMode == TLV202_42_FAVOR_DEPTH) || (tpMode == TLV202_42_FAVOR_WIDTH))
+    {
+        printf("eSafe CFG file : Found Topology Mode, val %d", tpMode);
+        snprintf(cmd, sizeof(cmd), "sysevent set erouter_topology-mode %d", tpMode);
+        system(cmd);
+    }
+    else
+    {
+        printf("eSafe CFG file : Found Topology Mode, illegal val %d, use default value.", tpMode);
+        st = TLV_PARSE_CALLBACK_ABORT_EXTIF;
+    }
+
+    return st;
 }
 
 /**************************************************************************/
@@ -1385,6 +1410,9 @@ static int GWP_act_DocsisLinkDown_callback_2()
     {
        printf("Stopping wan service\n");
        system("sysevent set wan-stop");
+   #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
+       system("sysevent set dhcpv6_client-stop");
+   #endif
     }
 
     return 0;
@@ -1404,6 +1432,9 @@ static int GWP_act_DocsisLinkUp_callback()
     {
         printf("Starting wan service\n");
         system("sysevent set wan-start");
+    #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
+        system("sysevent set dhcpv6_client-start");
+    #endif
     }
 
     return 0;
@@ -1898,6 +1929,9 @@ int main(int argc, char *argv[])
     obj->pGWP_act_ProvEntry = GWP_act_ProvEntry_callback;
     obj->pDocsis_gotEnable = docsis_gotEnable_callback;
     obj->pGW_Tr069PaSubTLVParse = GW_Tr069PaSubTLVParse;
+#ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
+    obj->pGW_SetTopologyMode = GW_setTopologyMode;
+#endif
     	
     /* Command line - ignored */
     SME_CreateEventHandler(obj);
