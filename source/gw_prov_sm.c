@@ -1240,6 +1240,7 @@ static void *GWP_sysevent_threadfunc(void *data)
         if (err)
         {
            printf("%s-ERR: %d\n", __func__, err);
+		   sleep(10);
         }
         else
         {
