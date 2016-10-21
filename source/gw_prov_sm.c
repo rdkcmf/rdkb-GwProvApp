@@ -64,6 +64,7 @@
 #include "Tr69_Tlv.h"
 #include <autoconf.h>
 #include "docsis_esafe_db.h"
+#include <time.h>
 
 /**************************************************************************/
 /*      DEFINES:                                                          */
@@ -90,6 +91,9 @@
 #define INFINITE_LIFE_TIME 0xFFFFFFFF
 #define MAX_CFG_PATH_LEN 256
 #define MAX_CMDLINE_LEN 255
+
+/* Restrict the log interval based on custom time */
+#define LOGGING_INTERVAL_SECS    ( 60 * 60 )
 
 #define DOCSIS_MULTICAST_PROC_MDFMODE "/proc/net/dbrctl/mdfmode"
 #define DOCSIS_MULTICAST_PROC_MDFMODE_ENABLED "Enable"
@@ -1198,6 +1202,7 @@ static void *GWP_sysevent_threadfunc(void *data)
     async_id_t pnm_asyncid;
 
     char buf[10];
+	time_t time_now = { 0 }, time_before = { 0 };
     
     
     sysevent_setnotification(sysevent_fd, sysevent_token, "erouter_mode", &erouter_mode_asyncid);
@@ -1239,7 +1244,22 @@ static void *GWP_sysevent_threadfunc(void *data)
 
         if (err)
         {
-           printf("%s-ERR: %d\n", __func__, err);
+		  /* 
+		     * Log should come for every 1hour 
+		     * - time_now = getting current time 
+		     * - difference between time now and previous time is greater than 
+		     *    3600 seconds
+		     * - time_before = getting current time as for next iteration 
+		     *    checking		     
+		     */	
+		   time(&time_now);
+  
+		   if(LOGGING_INTERVAL_SECS <= ((unsigned int)difftime(time_now, time_before)))
+		   {
+			   printf("%s-ERR: %d\n", __func__, err);
+			   time(&time_before);
+		   }
+
 		   sleep(10);
         }
         else
