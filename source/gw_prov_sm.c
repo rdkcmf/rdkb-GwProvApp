@@ -791,6 +791,8 @@ static void GWP_EnableERouter(void)
 static void GWP_EnterRouterMode(void)
 {
     char sysevent_cmd[80];
+	char MocaPreviousStatus[16];
+	int prev;
     if (eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf)
          return;
     //mipieper - removed for psuedo bridge.
@@ -801,6 +803,17 @@ static void GWP_EnterRouterMode(void)
 //    bridge_mode = 0;
     snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", BRMODE_ROUTER);
     system(sysevent_cmd);
+	syscfg_get(NULL, "MoCA_previous_status", MocaPreviousStatus, sizeof(MocaPreviousStatus));
+	prev = atoi(MocaPreviousStatus);
+	if(prev == 1)
+	{
+		system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool true");
+	}
+	else
+	{
+		system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
+	}
+
     system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
     
     system("sysevent set forwarding-restart");
@@ -844,6 +857,23 @@ static void GWP_EnterBridgeMode(void)
     // GSWT_ResetSwitch();
     //DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_NOT_INITIATED);
     char sysevent_cmd[80];
+	char MocaStatus[16];
+
+	memset(MocaStatus,sizeof(MocaStatus),0);
+	syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
+
+	if ((syscfg_set(NULL, "MoCA_previous_status", MocaStatus) != 0)) 
+    {
+        printf("syscfg_set failed\n");
+    }
+    else 
+    {
+        if (syscfg_commit() != 0) 
+        {
+		    printf("syscfg_commit failed\n");
+	    }
+	}
+	system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
     snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", active_mode);
     system(sysevent_cmd);
     system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
@@ -860,6 +890,26 @@ static void GWP_EnterPseudoBridgeMode(void)
 //     DOCSIS_ESAFE_SetErouterOperMode(DOCESAFE_EROUTER_OPER_NOIPV4_NOIPV6);
 //     DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_IN_PROGRESS);
     char sysevent_cmd[80];
+char MocaStatus[16];
+
+	memset(MocaStatus,sizeof(MocaStatus),0);
+	syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
+
+	if ((syscfg_set(NULL, "MoCA_previous_status", MocaStatus) != 0)) 
+    {
+        printf("syscfg_set failed\n");
+        
+    }
+    else 
+    {
+        if (syscfg_commit() != 0) 
+        {
+		    printf("syscfg_commit failed\n");
+		    
+	    }	    
+	}	
+	
+	system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");	
     snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", BRMODE_PRIMARY_BRIDGE);
     system(sysevent_cmd);
     system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
