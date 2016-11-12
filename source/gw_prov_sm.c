@@ -1266,7 +1266,11 @@ static void *GWP_sysevent_threadfunc(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "ipv6_prefix",  &ipv6_prefix_asyncid);
     sysevent_setnotification(sysevent_fd, sysevent_token, "bridge-status",  &bridge_status_asyncid);
     sysevent_setnotification(sysevent_fd, sysevent_token, "tr_" ER_NETDEVNAME "_dhcpv6_client_v6addr",  &ipv6_status_asyncid);
+#if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
+    sysevent_setnotification(sysevent_fd, sysevent_token, "bring-lan",  &pnm_asyncid);
+#else
     sysevent_setnotification(sysevent_fd, sysevent_token, "pnm-status",  &pnm_asyncid);
+#endif
 
     sysevent_set_options(sysevent_fd, sysevent_token, "system-restart", TUPLE_FLAG_EVENT);
     
@@ -1357,8 +1361,12 @@ static void *GWP_sysevent_threadfunc(void *data)
             {
                 printf("gw_prov_sm: got system restart\n");
                 GWP_ProcessUtopiaRestart();
-            } 
+            }
+#if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
+            else if (strcmp(name, "bring-lan") == 0)
+#else
             else if (strcmp(name, "pnm-status") == 0)
+#endif 
             {
                 pnm_inited = 1;
                 if (netids_inited) {
@@ -1393,11 +1401,15 @@ static void *GWP_sysevent_threadfunc(void *data)
                         if (buf[0] != '\0') sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv4-up", buf, 0);
 #endif
                     }
-                    
-                    if (!hotspot_started) { 
+                   
+                    if (!hotspot_started) {
+#if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
+                        printf("Not Calling hotspot-start for XB3 it will be done in cosa_start_rem.sh\n");
+#else
                         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "hotspot-start", "", 0);
                         hotspot_started = 1 ;
-                    }
+#endif
+                    } 
                     
                     if (factory_mode && lan_telnet_started == 0) {
                         system("/usr/sbin/telnetd -l /usr/sbin/cli -i brlan0");
