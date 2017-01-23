@@ -2200,6 +2200,8 @@ static int GWP_act_DocsisInited_callback()
 //     }
 #if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
 	printf("Not Initializing bridge_mode and eRouterMode for XB3\n");
+#elif defined(_PLATFORM_RASPBERRYPI_)
+    printf("Not Initializing bridge_mode and eRouterMode for Raspberry Pi\n");
 #else
     bridge_mode = GWP_SysCfgGetInt("bridge_mode");
     eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
@@ -2500,6 +2502,7 @@ int main(int argc, char *argv[])
 {
     printf("Started gw_prov_utopia\n");
 
+#if !defined(_PLATFORM_RASPBERRYPI_)
     #ifdef FEATURE_SUPPORT_RDKLOG
        setenv("LOG4C_RCPATH","/rdklogger",1);
        rdk_logger_init(DEBUG_INI_NAME);
@@ -2540,6 +2543,13 @@ int main(int argc, char *argv[])
     SME_CreateEventHandler(obj);
     GWPROV_PRINT(" Creating Event Handler over\n");
 
+#else
+    GWP_act_ProvEntry_callback();
+    GWP_act_DocsisInited_callback();
+
+    (void) pthread_join(sysevent_tid, NULL);
+    (void) pthread_join(linkstate_tid, NULL);
+#endif
     return 0;
 }
 
