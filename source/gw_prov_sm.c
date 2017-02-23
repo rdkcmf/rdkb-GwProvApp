@@ -307,19 +307,9 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 				strcpy(url,tlvObject->URL);
 				if(isTr069Started) 
 				{
-					char buf[10];
-					memset(buf,0,sizeof(buf));
-					syscfg_get( NULL, "migration_cp_handler", buf, sizeof(buf));
-					if( buf != NULL )
-					{
-						printf("gw_prov_app : Def value of Migration handler is %s\n",buf); 
-						if(strcmp(buf,"true"))
-						{
-							sprintf(cmd, "dmcli eRT setvalues Device.ManagementServer.URL string %s ",tlvObject->URL);
-							system(cmd);
-						}
-					}
-				}
+				    	sprintf(cmd, "dmcli eRT setvalues Device.ManagementServer.URL string %s ",tlvObject->URL);
+                    			system(cmd); 
+                		}
                 		break;
 			case GW_SUBTLV_TR069_USERNAME_EXTIF:                			
         		case GW_SUBTLV_TR069_PASSWORD_EXTIF:
