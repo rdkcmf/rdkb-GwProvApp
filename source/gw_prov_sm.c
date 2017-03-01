@@ -1940,11 +1940,6 @@ static int GWP_act_DocsisInited_callback()
         //GWP_SysCfgSetInt("last_erouter_mode", 0);
      }
 
-    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
-    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
-    
-    sysevent_bridge_mode = getSyseventBridgeMode(eRouterMode, bridge_mode);
-    active_mode = sysevent_bridge_mode;
 //     mipieper - remove for pseudo bridge support. Could add back depending on policy. 
 //     if (bridge_mode == 0)
 //     {
