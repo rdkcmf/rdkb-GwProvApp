@@ -54,16 +54,22 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#if !defined(_PLATFORM_RASPBERRYPI_)
 #include <sys/types.h>
+#endif
 #include <unistd.h>
+#if !defined(_PLATFORM_RASPBERRYPI_)
 #include <ruli.h>
+#endif
 #include <sysevent/sysevent.h>
 #include <syscfg/syscfg.h>
 #include <pthread.h>
 #include "gw_prov_abstraction.h"
 #include "Tr69_Tlv.h"
 #include <autoconf.h>
+#if !defined(_PLATFORM_RASPBERRYPI_)
 #include "docsis_esafe_db.h"
+#endif
 #include <time.h>
 
 /**************************************************************************/
@@ -167,6 +173,9 @@ static token_t sysevent_token;
 static int sysevent_fd_gs;
 static token_t sysevent_token_gs;
 static pthread_t sysevent_tid;
+#if defined(_PLATFORM_RASPBERRYPI_)
+static pthread_t linkstate_tid;
+#endif
 static int phylink_wan_state = 0;
 static int once = 0;
 static int bridge_mode = BRMODE_ROUTER;
@@ -199,6 +208,7 @@ static int getSyseventBridgeMode(int erouterMode, int bridgeMode) {
 }
 
 
+#if !defined(_PLATFORM_RASPBERRYPI_)
 /**************************************************************************/
 /*! \fn STATUS GW_TlvParserInit(void)
  **************************************************************************
@@ -623,6 +633,7 @@ label_nok:
     return STATUS_NOK;
 #endif 
 }
+#endif
 static TlvParseCallbackStatusExtIf_e GW_setTopologyMode(Uint8 type, Uint16 length, const Uint8* value)
 {
     Uint8 tpMode = *value;
@@ -685,6 +696,7 @@ static int GWP_SysCfgSetInt(const char *name, int int_value)
    return syscfg_set(NULL, name, value);
 }
 
+#if !defined(_PLATFORM_RASPBERRYPI_)
 /**************************************************************************/
 /*! \fn static STATUS GWP_UpdateEsafeAdminMode()
  **************************************************************************
@@ -760,6 +772,7 @@ static void GWP_DocsisInited(void)
 
 }
 
+#endif
 
 /**************************************************************************/
 /*! \fn void GWP_EnableERouter(void)
@@ -769,6 +782,7 @@ static void GWP_DocsisInited(void)
 **************************************************************************/
 static void GWP_EnableERouter(void)
 {
+#if !defined(_PLATFORM_RASPBERRYPI_)
     /* Update ESAFE state */
     GWP_UpdateEsafeAdminMode(eRouterMode);
 
@@ -776,6 +790,7 @@ static void GWP_EnableERouter(void)
     
     eSafeDevice_SetProvisioningStatusProgress(ESAFE_PROV_STATE_IN_PROGRESS_extIf);
 	
+#endif
     //bridge_mode = 0;
     //system("sysevent set bridge_mode 0");
     //system("sysevent set forwarding-restart");
@@ -827,6 +842,7 @@ static void GWP_EnterRouterMode(void)
 **************************************************************************/
 static void GWP_DisableERouter(void)
 {
+#if !defined(_PLATFORM_RASPBERRYPI_)
     /* Update ESAFE state */
     GWP_UpdateEsafeAdminMode(eRouterMode);
 
@@ -834,7 +850,7 @@ static void GWP_DisableERouter(void)
     
     /* Reset Switch, to remove all VLANs */ 
     eSafeDevice_SetProvisioningStatusProgress(ESAFE_PROV_STATE_NOT_INITIATED_extIf);
-   	
+#endif
 //    char sysevent_cmd[80];
 //     snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", bridge_mode);
 //     system(sysevent_cmd);
@@ -969,8 +985,10 @@ static void GWP_UpdateERouterMode(void)
             }
             else  // remain enabled, switch mode
             {
+#if !defined(_PLATFORM_RASPBERRYPI_)
                 /* Update ESAFE state */
                 GWP_UpdateEsafeAdminMode(eRouterMode);
+#endif
                 if(!once)
                     check_lan_wan_ready();
                 system("sysevent set erouter_mode-updated");
@@ -1043,6 +1061,7 @@ static void GWP_ProcessUtopiaRestart(void)
 //     }
 }
 
+#if !defined(_PLATFORM_RASPBERRYPI_)
 /**************************************************************************/
 /*! \fn int GWP_ProcessIpv4Down();
  **************************************************************************
@@ -1174,6 +1193,7 @@ static int GWP_ProcessIpv6Up(void)
 
     return 0;
 }
+#endif
 
 static void check_lan_wan_ready()
 {
@@ -1339,22 +1359,30 @@ static void *GWP_sysevent_threadfunc(void *data)
             {
                 if (strcmp(val, "up")==0)
                 {
+#if !defined(_PLATFORM_RASPBERRYPI_)
                     GWP_ProcessIpv4Up();
+#endif
                 }
                 else if (strcmp(val, "down")==0)
                 {
+#if !defined(_PLATFORM_RASPBERRYPI_)
                     GWP_ProcessIpv4Down();
+#endif
                 }
             }
             else if (strcmp(name, "ipv6-status") == 0)
             {
                 if (strcmp(val, "up")==0)
                 {
+#if !defined(_PLATFORM_RASPBERRYPI_)
                     GWP_ProcessIpv6Up();
+#endif
                 }
                 else if (strcmp(val, "down")==0)
                 {
+#if !defined(_PLATFORM_RASPBERRYPI_)
                     GWP_ProcessIpv6Down();
+#endif
                 }
             }
             else if (strcmp(name, "system-restart") == 0)
@@ -1393,7 +1421,11 @@ static void *GWP_sysevent_threadfunc(void *data)
             {
                 if (strcmp(val, "started") == 0) {
                     if (!webui_started) { 
+#if defined(_PLATFORM_RASPBERRYPI_)
+                        system("/bin/sh /etc/webgui.sh");
+#else
                         startWebUIProcess();
+#endif
                         webui_started = 1 ;
 #ifdef CONFIG_CISCO_HOME_SECURITY
                         //Piggy back off the webui start event to signal XHS startup
@@ -1430,8 +1462,9 @@ static void *GWP_sysevent_threadfunc(void *data)
                 Uint8 v6addr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
                 Uint8 soladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
                 inet_pton(AF_INET6, val, v6addr);
-                
+#if !defined(_PLATFORM_RASPBERRYPI_)
                 getMultiCastGroupAddress(v6addr,soladdr);
+#endif
                 inet_ntop(AF_INET6, soladdr, val, sizeof(val));
                 
                 
@@ -1511,6 +1544,47 @@ static int GWP_act_DocsisLinkUp_callback()
     printf("\n**************************\n\n");
 
     
+#if defined(_PLATFORM_RASPBERRYPI_)
+     char *temp;
+     char command[50];
+     char wanPhyName[20];
+     char out_value[20];
+     int outbufsz = sizeof(out_value);
+
+    char* buff = NULL;
+    buff = malloc(sizeof(char)*50);
+    if(buff == NULL)
+    {
+        return -1;
+    }
+
+    if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
+    {
+        strcpy(wanPhyName, out_value);
+        printf("wanPhyName = %s\n", wanPhyName);
+    }
+    else
+    {
+        if(buff != NULL)
+            free(buff);
+        return -1;
+    }
+    sprintf(command, "ifconfig %s | grep \"inet addr\" | cut -d':' -f2 | awk '{print$1}'", wanPhyName);
+
+    if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf /*&& bridge_mode == 0*/) // mipieper - pseduo bridge support
+    {
+        printf("Starting wan service\n");
+        system("sysevent set wan-start");
+        sleep(50);
+        system("sysevent set current_ipv4_link_state up");
+        system("sysevent set ipv4_wan_ipaddr `ifconfig erouter0 | grep \"inet addr\" | cut -d':' -f2 | awk '{print$1}'`");
+        system("sysevent set ipv4_wan_subnet `ifconfig erouter0 | grep \"inet addr\" | cut -d':' -f4 | awk '{print$1}'`");
+        system("sysevent set wan_service-status started");
+        system("sysevent set bridge_mode `syscfg get bridge_mode`");
+    }
+    if(buff != NULL)
+        free(buff);
+#else
     if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf /*&& bridge_mode == 0*/) // mipieper - pseduo bridge support
     {
         printf("Starting wan service\n");
@@ -1520,10 +1594,106 @@ static int GWP_act_DocsisLinkUp_callback()
     #endif
     }
 
+#endif
     return 0;
 }
 
 
+#if defined(_PLATFORM_RASPBERRYPI_)
+/**************************************************************************/
+/*! \fn void *GWP_linkstate_threadfunc(void *)
+ **************************************************************************
+ *  \brief Thread function to check the link state
+ *  \return
+ **************************************************************************/
+static void *GWP_linkstate_threadfunc(void *data)
+{
+    char *temp;
+    char command[50] = {0};
+    char wanPhyName[20] = {0};
+    char out_value[20] = {0};
+    int outbufsz = sizeof(out_value);
+
+    char* buff = NULL;
+    buff = malloc(sizeof(char)*50);
+    if(buff == NULL)
+    {
+        return -1;
+    }
+    char previousLinkStatus[10] = "down";
+    if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
+    {
+        strcpy(wanPhyName, out_value);
+        printf("wanPhyName = %s\n", wanPhyName);
+    }
+    else
+    {
+        if(buff != NULL)
+            free(buff);
+        return -1;
+    }
+    sprintf(command, "cat /sys/class/net/%s/operstate", wanPhyName);
+
+    while(1)
+    {
+        FILE *fp;
+        memset(buff,0,sizeof(buff));
+
+        /* Open the command for reading. */
+        fp = popen(command, "r");
+        if (fp == NULL)
+        {
+            printf("<%s>:<%d> Error popen\n", __FUNCTION__, __LINE__);
+            continue;
+        }
+
+        /* Read the output a line at a time - output it. */
+        while (fgets(buff, 50, fp) != NULL)
+        {
+            /*printf("Ethernet status :%s", buff);*/
+            temp = strchr(buff, '\n');
+            if(temp)
+                *temp = '\0';
+        }
+
+        /* close */
+        pclose(fp);
+        if(!strcmp(buff, (const char *)previousLinkStatus))
+        {
+            /*printf("Link status not changed\n");*/
+        }
+        else
+        {
+            if(!strcmp(buff, "up"))
+            {
+                /*printf("Ethernet status :%s\n", buff);*/
+                GWP_act_DocsisLinkUp_callback();
+            }
+            else if(!strcmp(buff, "down"))
+            {
+                /*printf("Ethernet status :%s\n", buff);*/
+                GWP_act_DocsisLinkDown_callback_1();
+                GWP_act_DocsisLinkDown_callback_2();
+            }
+            else
+            {
+                sleep(5);
+                continue;
+            }
+            memset(previousLinkStatus,0,sizeof(previousLinkStatus));
+            strcpy((char *)previousLinkStatus, buff);
+            /*printf("Previous Ethernet status :%s\n", (char *)previousLinkStatus);*/
+        }
+        sleep(5);
+    }
+    if(buff != NULL)
+        free(buff);
+
+    return 0;
+}
+#endif
+
+#if !defined(_PLATFORM_RASPBERRYPI_)
 /**************************************************************************/
 /*! \fn int GWP_act_DocsisCfgfile(SME_APP_T *app, SME_EVENT_T *event);
  **************************************************************************
@@ -1721,6 +1891,7 @@ static int GWP_act_BefCfgfileEntry_callback()
         return GWP_act_InactiveBefCfgfile();
     }
 }
+#endif
 
 /**************************************************************************/
 /*! \fn int GWP_act_DocsisInited(SME_APP_T *app, SME_EVENT_T *event);
@@ -1733,7 +1904,9 @@ static int GWP_act_DocsisInited_callback()
 {
     esafeErouterOperModeExtIf_e operMode;
     //DOCSIS_Esafe_Db_Enable_e eRouterModeTmp; 
+#if !defined(_PLATFORM_RASPBERRYPI_)
     DOCSIS_Esafe_Db_extIf_e eRouterModeTmp;
+#endif
     char macstr[20];
     Uint8 lladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
     Uint8 soladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
@@ -1741,6 +1914,7 @@ static int GWP_act_DocsisInited_callback()
     char soladdrStr[64];
     int sysevent_bridge_mode = 0;
 
+#if !defined(_PLATFORM_RASPBERRYPI_)
     /* Docsis initialized */
     printf("Got DOCSIS Initialized");
 
@@ -1758,7 +1932,7 @@ static int GWP_act_DocsisInited_callback()
 
     
     getDocsisDbFactoryMode(&factory_mode);
-    
+#endif
 
     if (factory_mode) {
         //GWP_SysCfgSetInt("bridge_mode", 2);
@@ -1782,9 +1956,12 @@ static int GWP_act_DocsisInited_callback()
     snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", sysevent_bridge_mode);
     system(sysevent_cmd);
 
+#if !defined(_PLATFORM_RASPBERRYPI_)
     GWP_DocsisInited();
 
+#endif
     system("sysevent set docsis-initialized 1");
+#if !defined(_PLATFORM_RASPBERRYPI_)
 
     /* Must set the ESAFE Enable state before replying to the DocsisInit event */
     eRouterModeTmp = eRouterMode;
@@ -1827,7 +2004,8 @@ static int GWP_act_DocsisInited_callback()
     getInterfaceLinkLocalAddress(ER_NETDEVNAME, lladdr);
     
     getMultiCastGroupAddress(lladdr,soladdr);
-  	
+#endif
+
     snprintf(soladdrKey, sizeof(soladdrKey), "ipv6_%s_ll_solicNodeAddr", ER_NETDEVNAME);
     inet_ntop(AF_INET6, soladdr, soladdrStr, sizeof(soladdrStr));
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, soladdrKey, soladdrStr,0);
@@ -1845,12 +2023,12 @@ static int GWP_act_DocsisInited_callback()
     }
 
     //calculate cm base solicited node address
-    
+#if !defined(_PLATFORM_RASPBERRYPI_)
     getInterfaceLinkLocalAddress(IFNAME_WAN_0, lladdr);
     
    
     getMultiCastGroupAddress(lladdr,soladdr);
-  	
+#endif
     snprintf(soladdrKey, sizeof(soladdrKey), "ipv6_%s_ll_solicNodeAddr", IFNAME_WAN_0);
     inet_ntop(AF_INET6, soladdr, soladdrStr, sizeof(soladdrStr));
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, soladdrKey, soladdrStr,0);
@@ -1876,7 +2054,7 @@ static int GWP_act_DocsisInited_callback()
 static int GWP_act_ProvEntry_callback()
 {
     int i;
-    
+#if !defined(_PLATFORM_RASPBERRYPI_)
     //system("sysevent set lan-start");
    
 /* TODO: OEM to implement swctl apis */
@@ -1887,7 +2065,54 @@ static int GWP_act_ProvEntry_callback()
     system("/etc/utopia/utopia_init.sh");
 
     syscfg_init();
-    
+#else
+    system("mkdir -p /nvram");
+    system("rm -f /nvram/dnsmasq.leases");
+    system("syslogd -f /etc/syslog.conf");
+
+    //copy files that are needed by CCSP modules
+    system("cp /usr/ccsp/ccsp_msg.cfg /tmp");
+    system("touch /tmp/cp_subsys_ert");
+
+    /* Below link is created because crond is expecting /crontabs/ dir instead of /var/spool/cron/crontabs */
+    system("ln -s /var/spool/cron/crontabs /");
+    /* directory /var/run/firewall because crond is expecting this dir to execute time specific blocking of firewall*/
+    system("mkdir -p /var/run/firewall");
+
+    system("/etc/utopia/utopia_init.sh");
+
+    syscfg_init();
+
+    sleep(2);
+
+    char command[50];
+    char wanPhyName[20];
+    char out_value[20];
+    int outbufsz = sizeof(out_value);
+
+    char previousLinkStatus[10] = "down";
+    if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
+    {
+       strcpy(wanPhyName, out_value);
+       printf("wanPhyName = %s\n", wanPhyName);
+    }
+    else
+    {
+       return -1;
+    }
+
+    system("ifconfig eth0 down");
+    memset(command,0,sizeof(command));
+    sprintf(command, "ip link set eth0 name %s", wanPhyName);
+    printf("****************value of command = %s**********************\n", command);
+    system(command);
+
+    memset(command,0,sizeof(command));
+    sprintf(command, "ifconfig %s up", wanPhyName);
+    printf("************************value of command = %s\***********************n", command);
+    system(command);
+#endif
+
     sysevent_fd = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov", &sysevent_token);
 
     if (sysevent_fd >= 0)
@@ -1899,6 +2124,7 @@ static int GWP_act_ProvEntry_callback()
     //Make another connection for gets/sets
     sysevent_fd_gs = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov-gs", &sysevent_token_gs);
 
+#if !defined(_PLATFORM_RASPBERRYPI_)
     /*if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf)
     {
         printf("Utopia init done, starting lan\n");
@@ -1910,14 +2136,20 @@ static int GWP_act_ProvEntry_callback()
     /* Now that we have the ICC que (SME) and we are registered on the docsis INIT    */
     /* event, we can notify PCD to continue                                           */
     sendProcessReadySignal();
+#endif
 
     /* Initialize Switch */
     // VEN_SWT_InitSwitch();
-    
+
+#if defined(_PLATFORM_RASPBERRYPI_)
+    printf("Thread to monitor link status \n");
+    pthread_create(&linkstate_tid, NULL, GWP_linkstate_threadfunc, NULL);
+#endif
 
     return 0;
 }
 
+#if !defined(_PLATFORM_RASPBERRYPI_)
 static int GWP_act_DocsisTftpOk_callback(){
     gDocTftpOk = 1;
     if(snmp_inited) {
@@ -1944,6 +2176,7 @@ static int GWP_act_DocsisTftpOk_callback(){
     }
     return;
 }*/
+#endif
 
 static void LAN_start() {
     int i;
@@ -1986,7 +2219,8 @@ static void LAN_start() {
 int main(int argc, char *argv[])
 {
     printf("Started gw_prov_utopia");
-   
+
+#if !defined(_PLATFORM_RASPBERRYPI_)
     if( findProcessId(argv[0]) > 0 )
     {
         printf("Already running");
@@ -2018,8 +2252,14 @@ int main(int argc, char *argv[])
     	
     /* Command line - ignored */
     SME_CreateEventHandler(obj);
-    
 
+#else
+    GWP_act_ProvEntry_callback();
+    GWP_act_DocsisInited_callback();
+
+    (void) pthread_join(sysevent_tid, NULL);
+    (void) pthread_join(linkstate_tid, NULL);
+#endif
     return 0;
 }
 
