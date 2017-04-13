@@ -1571,6 +1571,7 @@ static int GWP_act_DocsisLinkUp_callback()
     }
     sprintf(command, "ifconfig %s | grep \"inet addr\" | cut -d':' -f2 | awk '{print$1}'", wanPhyName);
 
+    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
     if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf /*&& bridge_mode == 0*/) // mipieper - pseduo bridge support
     {
         printf("Starting wan service\n");
