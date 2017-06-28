@@ -1947,16 +1947,24 @@ static int GWP_act_DocsisInited_callback()
 //
 //         bridge_mode = eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf ? 2 : 0;
 //     }
-
+#if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
+	printf("Not Initializing bridge_mode and eRouterMode for XB3\n");
+#else
+    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
+    
+    sysevent_bridge_mode = getSyseventBridgeMode(eRouterMode, bridge_mode);
+    active_mode = sysevent_bridge_mode;
     char sysevent_cmd[80];
     snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", sysevent_bridge_mode);
     system(sysevent_cmd);
-
+#endif
+  
 #if !defined(_PLATFORM_RASPBERRYPI_)
     GWP_DocsisInited();
-
 #endif
-    system("sysevent set docsis-initialized 1");
+  
+      system("sysevent set docsis-initialized 1");
 #if !defined(_PLATFORM_RASPBERRYPI_)
 
     /* Must set the ESAFE Enable state before replying to the DocsisInit event */
@@ -2051,6 +2059,7 @@ static int GWP_act_ProvEntry_callback()
 {
     int i;
 #if !defined(_PLATFORM_RASPBERRYPI_)
+	int sysevent_bridge_mode = 0;
     //system("sysevent set lan-start");
    
 /* TODO: OEM to implement swctl apis */
@@ -2127,7 +2136,17 @@ static int GWP_act_ProvEntry_callback()
         system("sysevent set lan-start");
     }*/
 
-    printf("Waiting for Docsis INIT");
+    printf("Waiting for Docsis INIT\n");
+
+	bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
+    
+    sysevent_bridge_mode = getSyseventBridgeMode(eRouterMode, bridge_mode);
+    active_mode = sysevent_bridge_mode;
+
+	char sysevent_cmd[80];
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", sysevent_bridge_mode);
+    system(sysevent_cmd);
 
     /* Now that we have the ICC que (SME) and we are registered on the docsis INIT    */
     /* event, we can notify PCD to continue                                           */
