@@ -873,9 +873,8 @@ static void GWP_EnterBridgeMode(void)
     // GSWT_ResetSwitch();
     //DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_NOT_INITIATED);
     char sysevent_cmd[80];
-	char MocaStatus[16];
+	char MocaStatus[16] = {0};
 
-	memset(MocaStatus,sizeof(MocaStatus),0);
 	syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
 
 	if ((syscfg_set(NULL, "MoCA_previous_status", MocaStatus) != 0)) 
@@ -906,9 +905,8 @@ static void GWP_EnterPseudoBridgeMode(void)
 //     DOCSIS_ESAFE_SetErouterOperMode(DOCESAFE_EROUTER_OPER_NOIPV4_NOIPV6);
 //     DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_IN_PROGRESS);
     char sysevent_cmd[80];
-char MocaStatus[16];
+    char MocaStatus[16] = {0};
 
-	memset(MocaStatus,sizeof(MocaStatus),0);
 	syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
 
 	if ((syscfg_set(NULL, "MoCA_previous_status", MocaStatus) != 0)) 
