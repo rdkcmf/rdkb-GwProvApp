@@ -1546,7 +1546,7 @@ static int GWP_act_DocsisLinkUp_callback()
     
 #if defined(_PLATFORM_RASPBERRYPI_)
      char *temp;
-     char command[50];
+     char command[128];
      char wanPhyName[20];
      char out_value[20];
      int outbufsz = sizeof(out_value);
@@ -1569,7 +1569,7 @@ static int GWP_act_DocsisLinkUp_callback()
             free(buff);
         return -1;
     }
-    sprintf(command, "ifconfig %s | grep \"inet addr\" | cut -d':' -f2 | awk '{print$1}'", wanPhyName);
+    snprintf(command,sizeof(command),"ifconfig %s | grep \"inet addr\" | cut -d':' -f2 | awk '{print$1}'", wanPhyName);
 
     eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
     if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf /*&& bridge_mode == 0*/) // mipieper - pseduo bridge support
