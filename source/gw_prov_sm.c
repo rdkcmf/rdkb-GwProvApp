@@ -71,7 +71,12 @@
 #include "docsis_esafe_db.h"
 #endif
 #include <time.h>
+#ifdef FEATURE_SUPPORT_RDKLOG
+#include "rdk_debug.h"
+#endif
 
+/* Global Variables*/
+char log_buff[1024];
 /**************************************************************************/
 /*      DEFINES:                                                          */
 /**************************************************************************/
@@ -104,6 +109,19 @@
 #define DOCSIS_MULTICAST_PROC_MDFMODE "/proc/net/dbrctl/mdfmode"
 #define DOCSIS_MULTICAST_PROC_MDFMODE_ENABLED "Enable"
 #define TR69_TLVDATA_FILE "/nvram/TLVData.bin"
+#define DEBUG_INI_NAME  "/etc/debug.ini"
+#define COMP_NAME "LOG.RDK.GWPROV"
+#define LOG_INFO 4
+
+#ifdef FEATURE_SUPPORT_RDKLOG
+#define GWPROV_PRINT(fmt ...)    {\
+				    				snprintf(log_buff, 1023, fmt);\
+                                    RDK_LOG(LOG_INFO, COMP_NAME, "%s", log_buff);\
+                                 }
+#else
+#define GWPROV_PRINT printf
+#endif
+
 static Tr69TlvData *tlvObject=NULL;
 static int objFlag = 1;
 
@@ -1274,7 +1292,7 @@ static void *GWP_sysevent_threadfunc(void *data)
     char buf[10];
 	time_t time_now = { 0 }, time_before = { 0 };
     
-    
+    GWPROV_PRINT(" Entry %s \n", __FUNCTION__); 
     sysevent_setnotification(sysevent_fd, sysevent_token, "erouter_mode", &erouter_mode_asyncid);
     sysevent_setnotification(sysevent_fd, sysevent_token, "ipv4-status",  &ipv4_status_asyncid);
     sysevent_setnotification(sysevent_fd, sysevent_token, "ipv6-status",  &ipv6_status_asyncid);
@@ -1293,7 +1311,7 @@ static void *GWP_sysevent_threadfunc(void *data)
 #endif
 
     sysevent_set_options(sysevent_fd, sysevent_token, "system-restart", TUPLE_FLAG_EVENT);
-    
+    GWPROV_PRINT(" Set notifications done \n");    
 //     sysevent_get(sysevent_fd, sysevent_token, "homesecurity_lan_l3net", buf, sizeof(buf));
 //     if (buf[0] != '\0' && atoi(buf))
 //         netids_inited = 1;
@@ -1396,6 +1414,7 @@ static void *GWP_sysevent_threadfunc(void *data)
             else if (strcmp(name, "pnm-status") == 0)
 #endif 
             {
+		 GWPROV_PRINT(" bring-lan/pnm-status received \n");                
                 pnm_inited = 1;
                 if (netids_inited) {
                         LAN_start();
@@ -1411,6 +1430,7 @@ static void *GWP_sysevent_threadfunc(void *data)
             }*/ 
             else if (strcmp(name, "primary_lan_l3net") == 0)
             {
+		 GWPROV_PRINT(" primary_lan_l3net received \n");              
                 if (pnm_inited)
                  {
                     LAN_start();
@@ -2060,13 +2080,15 @@ static int GWP_act_ProvEntry_callback()
     int i;
 #if !defined(_PLATFORM_RASPBERRYPI_)
 	int sysevent_bridge_mode = 0;
+    GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     //system("sysevent set lan-start");
    
 /* TODO: OEM to implement swctl apis */
 
     /* Register on docsis Init event */
-   
+    GWPROV_PRINT(" registerDocsisInitEvents \n");    
     registerDocsisInitEvents(); 
+    GWPROV_PRINT(" Calling /etc/utopia/utopia_init.sh \n"); 
     system("/etc/utopia/utopia_init.sh");
 
     syscfg_init();
@@ -2123,6 +2145,7 @@ static int GWP_act_ProvEntry_callback()
     if (sysevent_fd >= 0)
     {
         system("sysevent set phylink_wan_state down");
+        GWPROV_PRINT(" Creating Thread  GWP_sysevent_threadfunc \n"); 
         pthread_create(&sysevent_tid, NULL, GWP_sysevent_threadfunc, NULL);
     }
     
@@ -2196,21 +2219,23 @@ static int GWP_act_DocsisTftpOk_callback(){
 static void LAN_start() {
     int i;
     char buf[10];
-    
+    GWPROV_PRINT(" Entry %s \n", __FUNCTION__);      
     if (bridge_mode == 0 && eRouterMode != 0) // mipieper - add erouter check for pseudo bridge. Can remove if bridge_mode is forced in response to erouter_mode.
     {
         printf("Utopia starting lan...\n");
+        GWPROV_PRINT(" Setting lan-start event \n");           
         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "lan-start", "", 0);
         
         
     } else {
         // TODO: fix this
         printf("Utopia starting bridge...\n");
+        GWPROV_PRINT(" Setting bridge-start event \n");         
         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge-start", "", 0);
     }
     
     //ADD MORE LAN NETWORKS HERE
-    
+    GWPROV_PRINT(" Setting dhcp_server-resync event \n");     
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "dhcp_server-resync", "", 0);
    
 	/* TODO: OEM to implement swctl apis */
@@ -2236,9 +2261,16 @@ int main(int argc, char *argv[])
     printf("Started gw_prov_utopia");
 
 #if !defined(_PLATFORM_RASPBERRYPI_)
+#ifdef FEATURE_SUPPORT_RDKLOG
+       setenv("LOG4C_RCPATH","/rdklogger",1);
+       rdk_logger_init(DEBUG_INI_NAME);
+    #endif
+
+    GWPROV_PRINT(" Entry gw_prov_utopia\n");
     if( findProcessId(argv[0]) > 0 )
     {
         printf("Already running");
+        GWPROV_PRINT(" gw_prov_utopia already running. Returning...\n");
         return 1;
     }
 
@@ -2264,9 +2296,10 @@ int main(int argc, char *argv[])
 #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
     obj->pGW_SetTopologyMode = GW_setTopologyMode;
 #endif
-    	
+    GWPROV_PRINT(" Creating Event Handler\n");
     /* Command line - ignored */
     SME_CreateEventHandler(obj);
+    GWPROV_PRINT(" Creating Event Handler over\n");
 
 #else
     GWP_act_ProvEntry_callback();
