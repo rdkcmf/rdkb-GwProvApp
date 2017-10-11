@@ -1969,6 +1969,8 @@ static int GWP_act_DocsisInited_callback()
 //     }
 #if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
 	printf("Not Initializing bridge_mode and eRouterMode for XB3\n");
+#elif defined(_PLATFORM_RASPBERRYPI_)
+    printf("Not Initializing bridge_mode and eRouterMode for Raspberry Pi\n");
 #else
     bridge_mode = GWP_SysCfgGetInt("bridge_mode");
     eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
