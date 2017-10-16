@@ -178,6 +178,7 @@ static int pnm_inited = 0;
 static int netids_inited = 0;
 static int gDocTftpOk = 0;
 static int hotspot_started = 0;
+static int brlan10_started = 0;
 static int lan_telnet_started = 0;
 static int ciscoconnect_started = 0;
 static int webui_started = 0;
@@ -1503,7 +1504,19 @@ static void *GWP_sysevent_threadfunc(void *data)
                         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "hotspot-start", "", 0);
                         hotspot_started = 1 ;
 #endif
-                    } 
+                    }
+
+#ifdef MOCA_HOME_ISOLATION
+                    if (!brlan10_started) {
+#if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
+                        printf("Not Calling brlan10-start for XB3 it will be done in cosa_start_rem.sh\n");
+#else
+
+                        system("sh /usr/ccsp/moca/MoCA_isolation.sh &");
+                        brlan10_started = 1 ;
+#endif
+                    }
+#endif
                     
                     if (factory_mode && lan_telnet_started == 0) {
                         system("/usr/sbin/telnetd -l /usr/sbin/cli -i brlan0");
