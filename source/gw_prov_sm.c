@@ -113,6 +113,18 @@ char log_buff[1024];
 #define COMP_NAME "LOG.RDK.GWPROV"
 #define LOG_INFO 4
 
+/* Syscfg keys used for calculating mac addresses of local interfaces and bridges */
+#define BASE_MAC_SYSCFG_KEY                  "base_mac_address"
+/* Offset at which LAN bridge mac addresses will start */
+#define BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY    "base_mac_bridge_offset"
+#define BASE_MAC_BRIDGE_OFFSET               0
+/* Offset at which wired LAN mac addresses will start */
+#define BASE_MAC_LAN_OFFSET_SYSCFG_KEY       "base_mac_lan_offset"
+#define BASE_MAC_LAN_OFFSET                  129
+/* Offset at which WiFi AP mac addresses will start */
+#define BASE_MAC_WLAN_OFFSET_SYSCFG_KEY      "base_mac_wlan_offset"
+#define BASE_MAC_WLAN_OFFSET                 145
+
 #ifdef FEATURE_SUPPORT_RDKLOG
 #define GWPROV_PRINT(fmt ...)    {\
 				    				snprintf(log_buff, 1023, fmt);\
@@ -145,6 +157,8 @@ typedef struct _GwTlvsLocalDB
 
 /* New implementation !*/
 
+#define BRG_INST_SIZE 5
+#define BUF_SIZE 256
 
 
 /**************************************************************************/
@@ -1367,11 +1381,13 @@ static void *GWP_sysevent_threadfunc(void *data)
 
     for (;;)
     {
-        char name[25], val[42], buf[10];
+        char name[25], val[42], buf[BUF_SIZE];
         int namelen = sizeof(name);
         int vallen  = sizeof(val);
         int err;
         async_id_t getnotification_asyncid;
+        char brlan0_inst[BRG_INST_SIZE], brlan1_inst[BRG_INST_SIZE];
+        char* l3net_inst = NULL;
 
         err = sysevent_getnotification(sysevent_fd, sysevent_token, name, &namelen,  val, &vallen, &getnotification_asyncid);
 
@@ -1495,6 +1511,23 @@ static void *GWP_sysevent_threadfunc(void *data)
                         if (buf[0] != '\0') sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv4-up", buf, 0);
 #endif
                     }
+        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "primary_lan_l3net", buf, sizeof(buf));
+        strncpy(brlan0_inst, buf, BRG_INST_SIZE-1);
+        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "homesecurity_lan_l3net", buf, sizeof(buf));
+        strncpy(brlan1_inst, buf, BRG_INST_SIZE-1);
+
+        /*Get the active bridge instances and bring up the bridges */
+        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "l3net_instances", buf, sizeof(buf));
+        l3net_inst = strtok(buf, " ");
+        while(l3net_inst != NULL)
+        {
+            /*brlan0 and brlan1 are already up. We should not call their instances again*/
+            if(!((strcmp(l3net_inst, brlan0_inst)==0) || (strcmp(l3net_inst, brlan1_inst)==0)))
+            {
+                sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv4-up", l3net_inst, 0);
+            }
+            l3net_inst = strtok(NULL, " ");
+        }
                    
                     if (!hotspot_started) {
 #if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
@@ -2321,6 +2354,9 @@ static void LAN_start() {
  **************************************************************************/
 int main(int argc, char *argv[])
 {
+    char sysevent_cmd[80];
+    macaddr_t macAddr;
+
     printf("Started gw_prov_utopia\n");
 
 #if !defined(_PLATFORM_RASPBERRYPI_)
@@ -2363,6 +2399,39 @@ int main(int argc, char *argv[])
     /* Command line - ignored */
     SME_CreateEventHandler(obj);
     GWPROV_PRINT(" Creating Event Handler over\n");
+
+    /* Update LAN side base mac address */
+    getNetworkDeviceMacAddress(&macAddr);
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%02x:%02x:%02x:%02x:%02x:%02x",
+        macAddr.hw[0],macAddr.hw[1],
+        macAddr.hw[2],macAddr.hw[3],
+        macAddr.hw[4],macAddr.hw[5]);
+    if ((syscfg_set(NULL, BASE_MAC_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_SYSCFG_KEY);
+    }
+
+    /* Update LAN bridge mac address offset */
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_BRIDGE_OFFSET);
+    if ((syscfg_set(NULL, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY);
+    }
+
+    /* Update wired LAN interface mac address offset */
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_LAN_OFFSET);
+    if ((syscfg_set(NULL, BASE_MAC_LAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_LAN_OFFSET_SYSCFG_KEY);
+    }
+
+    /* Update WiFi interface mac address offset */
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_WLAN_OFFSET);
+    if ((syscfg_set(NULL, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY);
+    }
+
 
 #else
     GWP_act_ProvEntry_callback();
