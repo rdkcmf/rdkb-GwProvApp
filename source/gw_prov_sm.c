@@ -2040,7 +2040,19 @@ static int GWP_act_DocsisInited_callback()
 #if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
 	printf("Not Initializing bridge_mode and eRouterMode for XB3\n");
 #elif defined(_PLATFORM_RASPBERRYPI_)
-    printf("Not Initializing bridge_mode and eRouterMode for Raspberry Pi\n");
+    /*
+       eRouterMode needs to be initialised to something - otherwise the
+       "(bridge_mode == 0 && eRouterMode != 0)" test at the start of LAN_start()
+       will fail and the LAN will not be started. However, the exact details of
+       how eRouterMode should be initialised are not yet clear (e.g. should we
+       call GWP_SysCfgGetInt("last_erouter_mode") or just set to a fixed value?
+       If we do call GWP_SysCfgGetInt("last_erouter_mode") then should we also
+       call validate_mode() etc?).
+       Or perhaps eRouterMode should not be tested at all in LAN_start() when
+       building for RPi?
+    */
+    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
 #else
     bridge_mode = GWP_SysCfgGetInt("bridge_mode");
     eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
@@ -2225,7 +2237,21 @@ static int GWP_act_ProvEntry_callback()
     //Make another connection for gets/sets
     sysevent_fd_gs = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov-gs", &sysevent_token_gs);
 
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if defined(_PLATFORM_RASPBERRYPI_)
+    /*
+       eRouterMode needs to be initialised to something - otherwise the
+       "(bridge_mode == 0 && eRouterMode != 0)" test at the start of LAN_start()
+       will fail and the LAN will not be started. However, the exact details of
+       how eRouterMode should be initialised are not yet clear (e.g. should we
+       call GWP_SysCfgGetInt("last_erouter_mode") or just set to a fixed value?
+       If we do call GWP_SysCfgGetInt("last_erouter_mode") then should we also
+       call validate_mode() etc?).
+       Or perhaps eRouterMode should not be tested at all in LAN_start() when
+       building for RPi?
+    */
+    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
+#else
     /*if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf)
     {
         printf("Utopia init done, starting lan\n");
