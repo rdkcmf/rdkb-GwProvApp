@@ -228,6 +228,7 @@ typedef void (*fpGW_Tr069PaSubTLVParse)(Uint8 type, Uint16 length, const Uint8* 
 #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
 typedef void (*fpGW_SetTopologyMode)(Uint8 type, Uint16 length, const Uint8* value);
 #endif
+typedef int (*fpSendIoctlToPpDev)( unsigned int cmd, void* data);
 
 /*! \var typedef struct __appCallBack 
 *   \brief struct of pointers to the function pointers of callback functions.
@@ -246,6 +247,7 @@ typedef struct __appCallBack
 	fpDocsisEnabled pDocsis_gotEnable;
 	fpGW_Tr069PaSubTLVParse pGW_Tr069PaSubTLVParse;
 	fpGW_SetTopologyMode pGW_SetTopologyMode;
+	fpSendIoctlToPpDev  pGW_SendIoctlToPpDev;
 }appCallBack;
 #else
 typedef struct __appCallBack
@@ -260,6 +262,7 @@ typedef struct __appCallBack
 	fpProvEntry pGWP_act_ProvEntry;
         fpDocsisEnabled pDocsis_gotEnable;
         fpGW_Tr069PaSubTLVParse pGW_Tr069PaSubTLVParse;
+		fpSendIoctlToPpDev	pGW_SendIoctlToPpDev;
 }appCallBack;
 #endif
  /*
