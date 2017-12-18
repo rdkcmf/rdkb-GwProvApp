@@ -54,6 +54,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #if !defined(_PLATFORM_RASPBERRYPI_)
 #include <sys/types.h>
 #endif
@@ -1698,7 +1699,7 @@ static void *GWP_linkstate_threadfunc(void *data)
     buff = malloc(sizeof(char)*50);
     if(buff == NULL)
     {
-        return -1;
+        return (void *) -1;
     }
     char previousLinkStatus[10] = "down";
     if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
@@ -1710,7 +1711,7 @@ static void *GWP_linkstate_threadfunc(void *data)
     {
         if(buff != NULL)
             free(buff);
-        return -1;
+        return (void *) -1;
     }
     sprintf(command, "cat /sys/class/net/%s/operstate", wanPhyName);
 
@@ -2221,7 +2222,7 @@ static int GWP_act_ProvEntry_callback()
 
     memset(command,0,sizeof(command));
     sprintf(command, "ifconfig %s up", wanPhyName);
-    printf("************************value of command = %s\***********************n", command);
+    printf("************************value of command = %s***********************\n", command);
     system(command);
 #endif
 
