@@ -760,6 +760,7 @@ static Bool GWP_IsGwEnabled(void)
         return True;
     }
 }
+#endif
 
 validate_mode(int* bridge_mode, int* eRouterMode)
 {
@@ -777,6 +778,8 @@ validate_mode(int* bridge_mode, int* eRouterMode)
 	}
 	GWPROV_PRINT(" %s : bridge_mode = %d , eRouterMode = %d \n", __FUNCTION__, *bridge_mode, *eRouterMode);
 }
+
+#if !defined(_PLATFORM_RASPBERRYPI_)
 void docsis_gotEnable_callback(Uint8 state)
 {
 	GWPROV_PRINT(" Entry %s , state = %d \n", __FUNCTION__, state);
@@ -1486,6 +1489,9 @@ static void *GWP_sysevent_threadfunc(void *data)
                 if (strcmp(val, "started") == 0) {
                     if (!webui_started) { 
 #if defined(_PLATFORM_RASPBERRYPI_)
+                       if(strcmp(name, "bridge-status") == 0) {
+                             GWP_DisableERouter();
+                        }
                         system("/bin/sh /etc/webgui.sh");
 #else
                         startWebUIProcess();
@@ -2040,20 +2046,6 @@ static int GWP_act_DocsisInited_callback()
 //     }
 #if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
 	printf("Not Initializing bridge_mode and eRouterMode for XB3\n");
-#elif defined(_PLATFORM_RASPBERRYPI_)
-    /*
-       eRouterMode needs to be initialised to something - otherwise the
-       "(bridge_mode == 0 && eRouterMode != 0)" test at the start of LAN_start()
-       will fail and the LAN will not be started. However, the exact details of
-       how eRouterMode should be initialised are not yet clear (e.g. should we
-       call GWP_SysCfgGetInt("last_erouter_mode") or just set to a fixed value?
-       If we do call GWP_SysCfgGetInt("last_erouter_mode") then should we also
-       call validate_mode() etc?).
-       Or perhaps eRouterMode should not be tested at all in LAN_start() when
-       building for RPi?
-    */
-    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
-    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
 #else
     bridge_mode = GWP_SysCfgGetInt("bridge_mode");
     eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
@@ -2164,8 +2156,8 @@ static int GWP_act_DocsisInited_callback()
 static int GWP_act_ProvEntry_callback()
 {
     int i;
+    int sysevent_bridge_mode = 0;
 #if !defined(_PLATFORM_RASPBERRYPI_)
-	int sysevent_bridge_mode = 0;
     GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     //system("sysevent set lan-start");
    
@@ -2238,21 +2230,7 @@ static int GWP_act_ProvEntry_callback()
     //Make another connection for gets/sets
     sysevent_fd_gs = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov-gs", &sysevent_token_gs);
 
-#if defined(_PLATFORM_RASPBERRYPI_)
-    /*
-       eRouterMode needs to be initialised to something - otherwise the
-       "(bridge_mode == 0 && eRouterMode != 0)" test at the start of LAN_start()
-       will fail and the LAN will not be started. However, the exact details of
-       how eRouterMode should be initialised are not yet clear (e.g. should we
-       call GWP_SysCfgGetInt("last_erouter_mode") or just set to a fixed value?
-       If we do call GWP_SysCfgGetInt("last_erouter_mode") then should we also
-       call validate_mode() etc?).
-       Or perhaps eRouterMode should not be tested at all in LAN_start() when
-       building for RPi?
-    */
-    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
-    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
-#else
+
     /*if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf)
     {
         printf("Utopia init done, starting lan\n");
@@ -2275,6 +2253,7 @@ static int GWP_act_ProvEntry_callback()
 
     /* Now that we have the ICC que (SME) and we are registered on the docsis INIT    */
     /* event, we can notify PCD to continue                                           */
+#if !defined(_PLATFORM_RASPBERRYPI_)
     sendProcessReadySignal();
 #endif
 
