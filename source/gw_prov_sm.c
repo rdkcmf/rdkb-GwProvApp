@@ -2048,7 +2048,7 @@ static int GWP_act_DocsisInited_callback()
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
 #if !defined(_PLATFORM_RASPBERRYPI_)
     /* Docsis initialized */
-    printf("Got DOCSIS Initialized");
+    printf("Got DOCSIS Initialized\n");
 
     // printf("Utopia init done\n");
     printf("Loading erouter0 network interface driver\n");
@@ -2267,7 +2267,6 @@ static int GWP_act_ProvEntry_callback()
     //Make another connection for gets/sets
     sysevent_fd_gs = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov-gs", &sysevent_token_gs);
 
-
     /*if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf)
     {
         printf("Utopia init done, starting lan\n");
@@ -2276,7 +2275,7 @@ static int GWP_act_ProvEntry_callback()
 
     printf("Waiting for Docsis INIT\n");
 
-	bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
     eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
 
     validate_mode(&bridge_mode, &eRouterMode);
