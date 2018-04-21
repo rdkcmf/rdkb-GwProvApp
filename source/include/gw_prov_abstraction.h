@@ -62,6 +62,45 @@
 #define GW_SUBTLV_TR069_CONNREQ_PASSWORD_EXTIF            6
 #define GW_SUBTLV_TR069_ACS_OVERRIDE_EXTIF                7
 
+#if defined(_PLATFORM_RASPBERRYPI_)
+typedef enum
+{
+    False = 0,
+    True = 1
+} Bool;
+
+typedef int                 Int;
+typedef unsigned int        Uns;
+typedef unsigned int        Uint;
+typedef unsigned long       Ulong;
+typedef char                Char;
+typedef char*               String;
+typedef void*               Ptr;
+typedef long long           Int64;
+typedef int                 Int32;
+typedef short               Int16;
+typedef signed char         Int8;
+typedef unsigned long long  Uint64;
+typedef unsigned int        Uint32;
+typedef unsigned short      Uint16;
+typedef unsigned char       Uint8;
+
+typedef enum Status
+{
+    OK = 0,
+    NOK = -1,
+    STATUS_OK = OK,
+    STATUS_NOK = NOK,
+} STATUS;
+
+#define MAC_ADDR_LEN    6
+
+typedef struct mac_addr
+{
+    Uint8 hw[ MAC_ADDR_LEN ];
+} macaddr_t;
+#endif
+
 /*! \var typedef enum DOCSIS_Esafe_Db_extIf_e
     \brief Type of enable.
 *\n           Needs to be in sync with the enum defined for DOCSIS ESAFE DB.
