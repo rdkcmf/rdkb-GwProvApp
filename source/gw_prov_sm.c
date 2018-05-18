@@ -2400,6 +2400,9 @@ static int GWP_act_ProvEntry_callback()
 {
     int i;
     int sysevent_bridge_mode = 0;
+#ifdef MULTILAN_FEATURE
+    macaddr_t macAddr;
+#endif
 #if !defined(_PLATFORM_RASPBERRYPI_)
     GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     //system("sysevent set lan-start");
@@ -2512,6 +2515,40 @@ static int GWP_act_ProvEntry_callback()
     pthread_create(&linkstate_tid, NULL, GWP_linkstate_threadfunc, NULL);
 #endif
 
+#ifdef MULTILAN_FEATURE
+    /* Update LAN side base mac address */
+    getNetworkDeviceMacAddress(&macAddr);
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%02x:%02x:%02x:%02x:%02x:%02x",
+        macAddr.hw[0],macAddr.hw[1],
+        macAddr.hw[2],macAddr.hw[3],
+        macAddr.hw[4],macAddr.hw[5]);
+    if ((syscfg_set(NULL, BASE_MAC_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_SYSCFG_KEY);
+    }
+
+    /* Update LAN bridge mac address offset */
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_BRIDGE_OFFSET);
+    if ((syscfg_set(NULL, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY);
+    }
+
+    /* Update wired LAN interface mac address offset */
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_LAN_OFFSET);
+    if ((syscfg_set(NULL, BASE_MAC_LAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_LAN_OFFSET_SYSCFG_KEY);
+    }
+
+    /* Update WiFi interface mac address offset */
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_WLAN_OFFSET);
+    if ((syscfg_set(NULL, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY);
+    }
+#endif
+
     return 0;
 }
 
@@ -2604,7 +2641,6 @@ int main(int argc, char *argv[])
 {
 #ifdef MULTILAN_FEATURE
     char sysevent_cmd[80];
-    macaddr_t macAddr;
 #endif
 
     printf("Started gw_prov_utopia\n");
@@ -2652,39 +2688,6 @@ int main(int argc, char *argv[])
     /* Command line - ignored */
     SME_CreateEventHandler(obj);
     GWPROV_PRINT(" Creating Event Handler over\n");
-
-    /* Update LAN side base mac address */
-    getNetworkDeviceMacAddress(&macAddr);
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%02x:%02x:%02x:%02x:%02x:%02x",
-        macAddr.hw[0],macAddr.hw[1],
-        macAddr.hw[2],macAddr.hw[3],
-        macAddr.hw[4],macAddr.hw[5]);
-    if ((syscfg_set(NULL, BASE_MAC_SYSCFG_KEY, sysevent_cmd) != 0))
-    {
-        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_SYSCFG_KEY);
-    }
-
-    /* Update LAN bridge mac address offset */
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_BRIDGE_OFFSET);
-    if ((syscfg_set(NULL, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
-    {
-        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY);
-    }
-
-    /* Update wired LAN interface mac address offset */
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_LAN_OFFSET);
-    if ((syscfg_set(NULL, BASE_MAC_LAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
-    {
-        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_LAN_OFFSET_SYSCFG_KEY);
-    }
-
-    /* Update WiFi interface mac address offset */
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_WLAN_OFFSET);
-    if ((syscfg_set(NULL, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
-    {
-        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY);
-    }
-
 
 #else
     GWP_act_ProvEntry_callback();
