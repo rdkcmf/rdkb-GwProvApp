@@ -1695,7 +1695,7 @@ static int GWP_act_DocsisLinkUp_callback()
     if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf /*&& bridge_mode == 0*/) // mipieper - pseduo bridge support
     {
         printf("Starting wan service\n");
-        system("sysevent set wan-start");
+        system("sysevent set wan-start ; sysevent set sshd-restart");
         sleep(50);
         system("sysevent set current_ipv4_link_state up");
         system("sysevent set ipv4_wan_ipaddr `ifconfig erouter0 | grep \"inet addr\" | cut -d':' -f2 | awk '{print$1}'`");
@@ -1710,7 +1710,7 @@ static int GWP_act_DocsisLinkUp_callback()
     {
         printf("Starting wan service\n");
         GWPROV_PRINT(" Starting wan service\n");
-        system("sysevent set wan-start");
+        system("sysevent set wan-start ; sysevent set sshd-restart");
     #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
         system("sysevent set dhcpv6_client-start");
     #endif
