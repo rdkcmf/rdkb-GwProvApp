@@ -1541,7 +1541,7 @@ static void *GWP_sysevent_threadfunc(void *data)
 
                 GWP_UpdateERouterMode();
                 sleep(5);
-                system("reboot"); // Reboot on change of device mode.
+                system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.RebootDevice string Device"); // Reboot on change of device mode and backup logs.
             }
             else if (strcmp(name, "ipv4-status") == 0)
             {
