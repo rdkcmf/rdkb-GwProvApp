@@ -1898,6 +1898,12 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
 
     GWP_UpdateERouterMode();
 
+#if defined (INTEL_PUMA7)
+    //Intel Proposed RDKB Generic Bug Fix from XB6 SDK  
+    //Notifying the CcspPandM and CcspTr069 module that the TLV parsing is successful and done
+    system("sysevent set TLV202-status success");
+#endif
+
 closeFile:
     /* Close file */
     if (cfgFd >= 0)
