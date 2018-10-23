@@ -225,6 +225,12 @@ static int active_mode = BRMODE_ROUTER;
 
 static GwTlvsLocalDB_t gwTlvsLocalDB;
 
+#if defined (INTEL_PUMA7)
+//Intel Proposed RDKB Generic Bug Fix from XB6 SDK
+static int sIPv4_acquired = 0;
+static int sIPv6_acquired = 0;
+#endif
+
 /**************************************************************************/
 /*      LOCAL FUNCTIONS:                                                  */
 /**************************************************************************/
@@ -1357,6 +1363,12 @@ static void *GWP_sysevent_threadfunc(void *data)
     async_id_t ipv6_prefix_asyncid;
     async_id_t pnm_asyncid;
 
+#if defined (INTEL_PUMA7)
+    //Intel Proposed RDKB Generic Bug Fix from XB6 SDK	
+    async_id_t wan_ipaddr_asyncid;
+    async_id_t dhcp6_addr_asyncid;
+#endif
+
     char buf[10];
 	time_t time_now = { 0 }, time_before = { 0 };
     
@@ -1376,6 +1388,14 @@ static void *GWP_sysevent_threadfunc(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "bring-lan",  &pnm_asyncid);
 #else
     sysevent_setnotification(sysevent_fd, sysevent_token, "pnm-status",  &pnm_asyncid);
+#endif
+
+#if defined (INTEL_PUMA7)
+    //Intel Proposed RDKB Generic Bug Fix from XB6 SDK		
+    /* Registering to get notification for IPv4 address assigned to erouter */
+    sysevent_setnotification(sysevent_fd, sysevent_token, "current_wan_ipaddr",  &wan_ipaddr_asyncid);
+    /* Registering to get notification for IPv6 address assigned to erouter */
+    sysevent_setnotification(sysevent_fd, sysevent_token, "ipv6_dhcp6_addr",  &dhcp6_addr_asyncid);
 #endif
 
     sysevent_set_options(sysevent_fd, sysevent_token, "system-restart", TUPLE_FLAG_EVENT);
@@ -1608,10 +1628,34 @@ static void *GWP_sysevent_threadfunc(void *data)
 						check_lan_wan_ready();
 					}
 			}
-			else if (!strcmp(name, "ipv6_prefix") && strlen(val) > 5)
+			else if (!strcmp(name, "ipv6_prefix") && strlen(val) > 5) {
 				if (!once) {
 						check_lan_wan_ready();
 					}
+			}
+#if defined (INTEL_PUMA7)
+			//Intel Proposed RDKB Generic Bug Fix from XB6 SDK
+			else if (strcmp(name, "current_wan_ipaddr") == 0)
+            {
+                /* Set the "ipv4-status" to "up" when there is an IPv4 address assigned to gateway WAN interface */
+				sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv4-status", "up", 0);
+                if (!sIPv4_acquired && val && strcmp(val, "0.0.0.0"))
+                {
+                    setGWP_ipv4_event();
+                    sIPv4_acquired = 1; /* Setting it here, to send IPv4 event only once. Ignore any further RENEW messages */
+                }
+            }
+            else if (strcmp(name, "ipv6_dhcp6_addr") == 0)
+            {
+                /* Set the "ipv6-status" to "up" when there is an IPv6 address assigned to gateway WAN interface */
+				sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv6-status", "up", 0);
+				if (!sIPv6_acquired && val)
+                {
+                    setGWP_ipv6_event();
+                    sIPv6_acquired = 1; /* Setting it here, to send IPv6 event only once. Ignore any further RENEW/REBIND messages*/
+                }
+            }
+#endif
         }
     }
     return 0;
