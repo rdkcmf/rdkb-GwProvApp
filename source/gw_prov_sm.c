@@ -174,6 +174,10 @@ static TlvParseCallbackStatusExtIf_e GW_setTopologyMode(Uint8 type, Uint16 lengt
 /* New implementation !*/
 static void LAN_start();
 
+void GWP_UpdateTr069CfgThread( void *data );
+
+void GWP_Util_get_shell_output( char * cmd, char *out, int len );
+
 /**************************************************************************/
 /*      LOCAL VARIABLES:                                                  */
 /**************************************************************************/
@@ -317,8 +321,6 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 	FILE *fp;
 	int bFirstNode = 0;
 	int ret,tempFile;
-	int isTr069Started = 0;
-	char cmd[1024] = {0};
 	GWPROV_PRINT(" Entry %s : typeOfTLV %d \n", __FUNCTION__, typeOfTLV);
 	
 	if (objFlag == 1)
@@ -328,7 +330,6 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 	}
 	/* Check if its a fresh boot-up or a boot-up after factory reset*/
 	ret = IsFileExists(TR69_TLVDATA_FILE);
-	isTr069Started = IsFileExists(TR069PidFile);
 
 	if(ret == 0)
 	{
@@ -363,22 +364,10 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 		{
 			case GW_SUBTLV_TR069_ENABLE_CWMP_EXTIF:
 				tlvObject->EnableCWMP = gwTlvsLocalDB.tlv2.EnableCWMP;
-				if(isTr069Started) 
-				{
-				    	sprintf(cmd, "dmcli eRT setvalues Device.ManagementServer.EnableCWMP bool  %d ",tlvObject->EnableCWMP);
-					system(cmd);
-					GWPROV_PRINT(" %s \n",cmd);
-                		}                  
 				break;
 			case GW_SUBTLV_TR069_URL_EXTIF:
 				strcpy(tlvObject->URL,gwTlvsLocalDB.tlv2.URL);
 				strcpy(url,tlvObject->URL);
-				if(isTr069Started) 
-				{
-				    	sprintf(cmd, "dmcli eRT setvalues Device.ManagementServer.URL string %s ",tlvObject->URL);
-                    			system(cmd); 
-					GWPROV_PRINT(" %s \n",cmd);
-                		}
                 		break;
 			case GW_SUBTLV_TR069_USERNAME_EXTIF:                			
         		case GW_SUBTLV_TR069_PASSWORD_EXTIF:
@@ -402,12 +391,6 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 		{
 			case GW_SUBTLV_TR069_ENABLE_CWMP_EXTIF:
 					tlvObject->EnableCWMP = gwTlvsLocalDB.tlv2.EnableCWMP;
-					if(isTr069Started) 
-					{
-				    		sprintf(cmd, "dmcli eRT setvalues Device.ManagementServer.EnableCWMP bool  %d ",tlvObject->EnableCWMP);
-                    				system(cmd);
-						GWPROV_PRINT(" %s \n",cmd);
-                			}  
 					break;
 			case GW_SUBTLV_TR069_URL_EXTIF:
 				if(tlvObject->Tr69Enable == FALSE) 
@@ -415,13 +398,6 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 					// This is to make sure that we always use boot config supplied URL
 					// during TR69 initialization
 					strcpy(tlvObject->URL,gwTlvsLocalDB.tlv2.URL);
-					if(isTr069Started) 
-					{
-				    		sprintf(cmd, "dmcli eRT setvalues Device.ManagementServer.URL string %s ",tlvObject->URL);
-                    				system(cmd);
-						GWPROV_PRINT(" %s \n",cmd);
-                			}
-					 
 				}
 				break;
 			case GW_SUBTLV_TR069_USERNAME_EXTIF:                			
@@ -1799,6 +1775,144 @@ static void *GWP_linkstate_threadfunc(void *data)
 }
 #endif
 
+/* GWP_Util_get_shell_output() */
+void GWP_Util_get_shell_output( char * cmd, char *out, int len )
+{
+    FILE  *fp = NULL;
+    char   buf[ 16 ] = { 0 };
+    char  *p = NULL;
+
+    fp = popen( cmd, "r" );
+
+    if ( fp )
+    {
+        fgets( buf, sizeof( buf ), fp );
+        
+        /*we need to remove the \n char in buf*/
+        if ( ( p = strchr( buf, '\n' ) ) ) 
+		*p = 0;
+
+        strncpy( out, buf, len - 1 );
+
+        pclose( fp );        
+    }
+}
+
+/* GWP_UpdateTr069CfgThread() */
+void GWP_UpdateTr069CfgThread( void *data )
+{
+	int 	IsNeedtoProceedFurther    = TRUE;
+
+	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
+
+	pthread_detach( pthread_self( ) );
+
+	//Check whether TLV binary is present or not
+	if( 0 == IsFileExists( TR69_TLVDATA_FILE ) )
+	{
+		GWPROV_PRINT(" %s file not present \n", TR69_TLVDATA_FILE );
+		IsNeedtoProceedFurther = FALSE;
+	}
+
+	//Proceed Further
+	if( IsNeedtoProceedFurther )
+	{
+		char	output[ 16 ] = { 0 };
+
+		//Get Tr069 process PID
+		GWP_Util_get_shell_output( "pidof CcspTr069PaSsp", output, sizeof( output ) );
+		
+		/*
+		 * Check Tr069 process is running or not. If not then no need to configure TLV data because it will get 
+		 * update during Tr069 process initialization. so break the loop
+		 */
+		if( ( '\0' == output[ 0 ] ) || ( 0 == strlen( output ) ) )
+		{
+			GWPROV_PRINT("%s CcspTr069PaSsp is not running. No need to configure\n", __FUNCTION__);
+			IsNeedtoProceedFurther= FALSE;
+		}
+		else
+		{
+			//Get the PID
+			GWPROV_PRINT("%s CcspTr069PaSsp is running PID:%s\n", __FUNCTION__, output );
+		}
+		
+		//Proceed further
+		if( IsNeedtoProceedFurther )
+		{
+			int 	TotalWaitTime	= 300;
+		
+			//Check whether TLV parsing got missed by Tr069 or not
+			if( 0 == access( "/tmp/.TLVmissedtoparsebytr069" , F_OK ) )
+			{
+				GWPROV_PRINT("%s CcspTr069PaSsp has missed to parse %s file\n", __FUNCTION__, TR69_TLVDATA_FILE );
+		
+				while( 1 )
+				{
+					//Get Tr069 process ready status
+					if( 0 == access( "/var/tmp/tr069paready" , F_OK ) )
+					{
+						//Tr069 process is ready to receive DBUS signal. so proceed to set call
+						char cmd[ 512 ];
+
+						//Wait for 5seconds after system ready signal
+						sleep( 5 );
+
+						GWPROV_PRINT("%s CcspTr069PaSsp has ready so update boot cfg data\n", __FUNCTION__);
+					
+						//Set the Enable CWMP parameter
+						memset( cmd, 0 , sizeof( cmd ) );
+						sprintf( cmd, "dmcli eRT setvalues Device.ManagementServer.EnableCWMP bool	%d ", tlvObject->EnableCWMP );
+						system( cmd );
+						GWPROV_PRINT(" %s \n",cmd);
+					
+						/*
+						  * Set the URL parameter
+						  * When FreshBootUp == TRUE
+						  * When FreshBootUp == FALSE && 	Tr69Enable == FALSE					  
+						  */
+						
+						if( ( TRUE == tlvObject->FreshBootUp ) || \
+							( FALSE == tlvObject->FreshBootUp ) && ( tlvObject->Tr69Enable == FALSE )
+						  )
+						{
+							if( '\0' != tlvObject->URL[ 0 ] )
+							{
+								memset( cmd, 0 , sizeof( cmd ) );
+								sprintf( cmd, "dmcli eRT setvalues Device.ManagementServer.URL string %s ", tlvObject->URL );
+								system( cmd );
+								GWPROV_PRINT(" %s \n",cmd);
+							}
+						}
+
+						break;
+					}
+					else
+					{
+						//Wait for 10seconds to get system ready signal
+						sleep( 10 );
+						TotalWaitTime = TotalWaitTime - 10;
+
+						//Wait till 5Minutes after Tr069 coming up otherwise quit the loop
+						if(  0 >= TotalWaitTime )
+						{
+							GWPROV_PRINT("%s CcspTr069PaSsp has not coming up even after 5minutes. so breaking loop\n", __FUNCTION__);
+							break;
+						}
+					}
+				}
+			}
+			else
+			{
+				IsNeedtoProceedFurther = FALSE;
+				GWPROV_PRINT("%s CcspTr069PaSsp might be parsed %s file\n", __FUNCTION__, TR69_TLVDATA_FILE );
+			}
+		}
+	}
+	
+	GWPROV_PRINT(" Exit %s \n", __FUNCTION__);
+}
+
 #if !defined(_PLATFORM_RASPBERRYPI_)
 /**************************************************************************/
 /*! \fn int GWP_act_DocsisCfgfile(SME_APP_T *app, SME_EVENT_T *event);
@@ -1815,6 +1929,8 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
     Uint32 cfgFileBuffLen;
     int cfgFd;
     ssize_t actualNumBytes;
+	pthread_t Updatetr069CfgThread = (pthread_t)NULL;
+
     //TlvParseStatus_e tlvStatus;
     TlvParsingStatusExtIf_e tlvStatus;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
@@ -1895,6 +2011,10 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
     printf("eSafe Config file \"%s\", parsed completed, status %d\n", cfgFileName, tlvStatus);
     GWPROV_PRINT(" eSafe Config file \"%s\", parsed completed, status %d\n", cfgFileName, tlvStatus);
     //GW_UpdateTr069Cfg();
+
+	//Start GWP_UpdateTr069CfgThread 
+    GWPROV_PRINT("GWP_UpdateTr069CfgThread started\n");
+	pthread_create( &Updatetr069CfgThread, NULL, &GWP_UpdateTr069CfgThread, NULL );  
 
     GWP_UpdateERouterMode();
 
