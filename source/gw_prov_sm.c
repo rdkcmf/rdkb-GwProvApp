@@ -116,6 +116,20 @@ char log_buff[1024];
 #define COMP_NAME "LOG.RDK.GWPROV"
 #define LOG_INFO 4
 
+#ifdef MULTILAN_FEATURE
+/* Syscfg keys used for calculating mac addresses of local interfaces and bridges */
+#define BASE_MAC_SYSCFG_KEY                  "base_mac_address"
+/* Offset at which LAN bridge mac addresses will start */
+#define BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY    "base_mac_bridge_offset"
+#define BASE_MAC_BRIDGE_OFFSET               0
+/* Offset at which wired LAN mac addresses will start */
+#define BASE_MAC_LAN_OFFSET_SYSCFG_KEY       "base_mac_lan_offset"
+#define BASE_MAC_LAN_OFFSET                  129
+/* Offset at which WiFi AP mac addresses will start */
+#define BASE_MAC_WLAN_OFFSET_SYSCFG_KEY      "base_mac_wlan_offset"
+#define BASE_MAC_WLAN_OFFSET                 145
+#endif
+
 #ifdef FEATURE_SUPPORT_RDKLOG
 #define GWPROV_PRINT(fmt ...)    {\
 				    				snprintf(log_buff, 1023, fmt);\
@@ -148,6 +162,10 @@ typedef struct _GwTlvsLocalDB
 
 /* New implementation !*/
 
+#ifdef MULTILAN_FEATURE
+#define BRG_INST_SIZE 5
+#define BUF_SIZE 256
+#endif
 
 
 /**************************************************************************/
@@ -1375,11 +1393,19 @@ static void *GWP_sysevent_threadfunc(void *data)
 
     for (;;)
     {
+#ifdef MULTILAN_FEATURE
+        char name[25], val[42], buf[BUF_SIZE];
+#else
         char name[25], val[42], buf[10];
+#endif
         int namelen = sizeof(name);
         int vallen  = sizeof(val);
         int err;
         async_id_t getnotification_asyncid;
+#ifdef MULTILAN_FEATURE
+        char brlan0_inst[BRG_INST_SIZE], brlan1_inst[BRG_INST_SIZE];
+        char* l3net_inst = NULL;
+#endif
 
         err = sysevent_getnotification(sysevent_fd, sysevent_token, name, &namelen,  val, &vallen, &getnotification_asyncid);
 
@@ -1506,6 +1532,25 @@ static void *GWP_sysevent_threadfunc(void *data)
                         if (buf[0] != '\0') sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv4-up", buf, 0);
 #endif
                     }
+#ifdef MULTILAN_FEATURE
+        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "primary_lan_l3net", buf, sizeof(buf));
+        strncpy(brlan0_inst, buf, BRG_INST_SIZE-1);
+        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "homesecurity_lan_l3net", buf, sizeof(buf));
+        strncpy(brlan1_inst, buf, BRG_INST_SIZE-1);
+
+        /*Get the active bridge instances and bring up the bridges */
+        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "l3net_instances", buf, sizeof(buf));
+        l3net_inst = strtok(buf, " ");
+        while(l3net_inst != NULL)
+        {
+            /*brlan0 and brlan1 are already up. We should not call their instances again*/
+            if(!((strcmp(l3net_inst, brlan0_inst)==0) || (strcmp(l3net_inst, brlan1_inst)==0)))
+            {
+                sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv4-up", l3net_inst, 0);
+            }
+            l3net_inst = strtok(NULL, " ");
+        }
+#endif
                    
                     if (!hotspot_started) {
 #if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
@@ -2497,8 +2542,16 @@ static void LAN_start() {
  **************************************************************************/
 int main(int argc, char *argv[])
 {
+#ifdef MULTILAN_FEATURE
+    char sysevent_cmd[80];
+    macaddr_t macAddr;
+#endif
+
     printf("Started gw_prov_utopia\n");
+
+#ifdef MULTILAN_FEATURE
 #if !defined(_PLATFORM_RASPBERRYPI_)
+
     #ifdef FEATURE_SUPPORT_RDKLOG
        setenv("LOG4C_RCPATH","/rdklogger",1);
        rdk_logger_init(DEBUG_INI_NAME);
@@ -2539,12 +2592,87 @@ int main(int argc, char *argv[])
     /* Command line - ignored */
     SME_CreateEventHandler(obj);
     GWPROV_PRINT(" Creating Event Handler over\n");
+
+    /* Update LAN side base mac address */
+    getNetworkDeviceMacAddress(&macAddr);
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%02x:%02x:%02x:%02x:%02x:%02x",
+        macAddr.hw[0],macAddr.hw[1],
+        macAddr.hw[2],macAddr.hw[3],
+        macAddr.hw[4],macAddr.hw[5]);
+    if ((syscfg_set(NULL, BASE_MAC_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_SYSCFG_KEY);
+    }
+
+    /* Update LAN bridge mac address offset */
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_BRIDGE_OFFSET);
+    if ((syscfg_set(NULL, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY);
+    }
+
+    /* Update wired LAN interface mac address offset */
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_LAN_OFFSET);
+    if ((syscfg_set(NULL, BASE_MAC_LAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_LAN_OFFSET_SYSCFG_KEY);
+    }
+
+    /* Update WiFi interface mac address offset */
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_WLAN_OFFSET);
+    if ((syscfg_set(NULL, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    {
+        fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY);
+    }
+
+
 #else
     GWP_act_ProvEntry_callback();
     GWP_act_DocsisInited_callback();
 
     (void) pthread_join(sysevent_tid, NULL);
     (void) pthread_join(linkstate_tid, NULL);
+#endif
+#else
+    #ifdef FEATURE_SUPPORT_RDKLOG
+       setenv("LOG4C_RCPATH","/rdklogger",1);
+       rdk_logger_init(DEBUG_INI_NAME);
+    #endif
+
+    GWPROV_PRINT(" Entry gw_prov_utopia\n");
+    if( findProcessId(argv[0]) > 0 )
+    {
+        printf("Already running\n");
+        GWPROV_PRINT(" gw_prov_utopia already running. Returning...\n");
+        return 1;
+    }
+
+    printf("Register exception handlers\n");
+    
+    registerProcessExceptionHandlers(argv[0]);
+
+    GWP_InitDB();
+
+    appCallBack *obj = NULL;
+    obj = (appCallBack*)malloc(sizeof(appCallBack));
+	
+    obj->pGWP_act_DocsisLinkDown_1 =  GWP_act_DocsisLinkDown_callback_1;
+    obj->pGWP_act_DocsisLinkDown_2 =  GWP_act_DocsisLinkDown_callback_2;
+    obj->pGWP_act_DocsisLinkUp = GWP_act_DocsisLinkUp_callback;
+    obj->pGWP_act_DocsisCfgfile = GWP_act_DocsisCfgfile_callback;
+    obj->pGWP_act_DocsisTftpOk = GWP_act_DocsisTftpOk_callback;
+    obj->pGWP_act_BefCfgfileEntry = GWP_act_BefCfgfileEntry_callback;
+    obj->pGWP_act_DocsisInited = GWP_act_DocsisInited_callback;
+    obj->pGWP_act_ProvEntry = GWP_act_ProvEntry_callback;
+    obj->pDocsis_gotEnable = docsis_gotEnable_callback;
+    obj->pGW_Tr069PaSubTLVParse = GW_Tr069PaSubTLVParse;
+#ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
+    obj->pGW_SetTopologyMode = GW_setTopologyMode;
+#endif
+    GWPROV_PRINT(" Creating Event Handler\n");
+    /* Command line - ignored */
+    SME_CreateEventHandler(obj);
+    GWPROV_PRINT(" Creating Event Handler over\n");
 #endif
     return 0;
 }
