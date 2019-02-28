@@ -1794,7 +1794,7 @@ void GWP_Util_get_shell_output( char * cmd, char *out, int len )
         pclose( fp );        
     }
 }
-
+#if !defined(_PLATFORM_RASPBERRYPI_)
 /* GWP_UpdateTr069CfgThread() */
 void GWP_UpdateTr069CfgThread( void *data )
 {
@@ -1909,7 +1909,7 @@ void GWP_UpdateTr069CfgThread( void *data )
 	
 	GWPROV_PRINT(" Exit %s \n", __FUNCTION__);
 }
-
+#endif
 #if !defined(_PLATFORM_RASPBERRYPI_)
 /**************************************************************************/
 /*! \fn int GWP_act_DocsisCfgfile(SME_APP_T *app, SME_EVENT_T *event);
