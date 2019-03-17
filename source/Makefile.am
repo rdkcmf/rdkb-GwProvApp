@@ -38,6 +38,6 @@ gw_prov_utopia_SOURCES = gw_prov_sm.c
 if PLATFORM_RASPBERRYPI_ENABLED
 gw_prov_utopia_LDFLAGS = -lsysevent -lsyscfg -lulog
 else
-gw_prov_utopia_LDFLAGS =  -lgwprovappabs -lsysevent -lsyscfg -lulog
+gw_prov_utopia_LDFLAGS =  -lgwprovappabs -lsysevent -lsyscfg -lulog -lsecure_wrapper
 endif
 gw_prov_utopia_CPPFLAGS += -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/ccsp -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/dbus-1.0 -I${PKG_CONFIG_SYSROOT_DIR}$(libdir)/dbus-1.0/include
