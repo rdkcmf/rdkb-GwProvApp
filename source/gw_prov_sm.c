@@ -72,7 +72,7 @@
 #include "docsis_esafe_db.h"
 #endif
 #include <time.h>
-
+#include "secure_wrapper.h"
 #ifdef FEATURE_SUPPORT_RDKLOG
 #include "rdk_debug.h"
 #endif
@@ -1797,15 +1797,14 @@ static void *GWP_sysevent_threadfunc(void *data)
                 sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv6_"ER_NETDEVNAME"_dhcp_solicNodeAddr", val,0);
 
                 unsigned char lan_wan_ready = 0;
-                char command[256], result_buf[32];
-                command[0] = result_buf[0] = '\0';
+                char result_buf[32];
+                result_buf[0] = '\0';
 
                 sysevent_get(sysevent_fd_gs, sysevent_token_gs, "start-misc", result_buf, sizeof(result_buf));
                 lan_wan_ready = strstr(result_buf, "ready") == NULL ? 0 : 1;
 
                 if(!lan_wan_ready) {
-                    snprintf(command, sizeof(command),"ip6tables -t mangle -I PREROUTING 1 -i %s -d %s -p ipv6-icmp -m icmp6 --icmpv6-type 135 -m limit --limit 20/sec -j ACCEPT", ER_NETDEVNAME, val);
-                    system(command);
+                    v_secure_system("ip6tables -t mangle -I PREROUTING 1 -i %s -d %s -p ipv6-icmp -m icmp6 --icmpv6-type 135 -m limit --limit 20/sec -j ACCEPT", ER_NETDEVNAME, val);
                 }
                 else
                     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "firewall-restart", "",0);
@@ -2136,9 +2135,7 @@ void GWP_UpdateTr069CfgThread( void *data )
 						GWPROV_PRINT("%s CcspTr069PaSsp has ready so update boot cfg data\n", __FUNCTION__);
 					
 						//Set the Enable CWMP parameter
-						memset( cmd, 0 , sizeof( cmd ) );
-						sprintf( cmd, "dmcli eRT setvalues Device.ManagementServer.EnableCWMP bool	%d ", tlvObject->EnableCWMP );
-						system( cmd );
+						v_secure_system("dmcli eRT setvalues Device.ManagementServer.EnableCWMP bool      %d ", tlvObject->EnableCWMP);
 						GWPROV_PRINT(" %s \n",cmd);
 					
 						/*
@@ -2153,9 +2150,7 @@ void GWP_UpdateTr069CfgThread( void *data )
 						{
 							if( '\0' != tlvObject->URL[ 0 ] )
 							{
-								memset( cmd, 0 , sizeof( cmd ) );
-								sprintf( cmd, "dmcli eRT setvalues Device.ManagementServer.URL string %s ", tlvObject->URL );
-								system( cmd );
+								v_secure_system("dmcli eRT setvalues Device.ManagementServer.URL string %s ", tlvObject->URL);
 								GWPROV_PRINT(" %s \n",cmd);
 							}
 
@@ -2233,9 +2228,7 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
        goto gimReply;
     }
 
-    char cmd[80];
-    sprintf(cmd, "sysevent set docsis_cfg_file %s", cfgFileName);
-    system(cmd);
+    v_secure_system("sysevent set docsis_cfg_file %s", cfgFileName);
 
     printf("sysevent set docsis_cfg_file %s\n", cfgFileName);
 
@@ -2555,15 +2548,14 @@ static int GWP_act_DocsisInited_callback()
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, soladdrKey, soladdrStr,0);
 
     unsigned char lan_wan_ready = 0;
-    char command[256], result_buf[32];
-    command[0] = result_buf[0] = '\0';
+    char result_buf[32];
+    result_buf[0] = '\0';
 
     sysevent_get(sysevent_fd_gs, sysevent_token_gs, "start-misc", result_buf, sizeof(result_buf));
     lan_wan_ready = strstr(result_buf, "ready") == NULL ? 0 : 1;
         GWPROV_PRINT(" lan_wan_ready = %d\n", lan_wan_ready);
     if(!lan_wan_ready) {
-        snprintf(command, sizeof(command),"ip6tables -t mangle -I PREROUTING 1 -i %s -d %s -p ipv6-icmp -m icmp6 --icmpv6-type 135 -m limit --limit 20/sec -j ACCEPT", ER_NETDEVNAME, soladdrStr);
-        system(command);
+        v_secure_system("ip6tables -t mangle -I PREROUTING 1 -i %s -d %s -p ipv6-icmp -m icmp6 --icmpv6-type 135 -m limit --limit 20/sec -j ACCEPT", ER_NETDEVNAME, soladdrStr);
     }
 
     //calculate cm base solicited node address
@@ -2578,8 +2570,7 @@ static int GWP_act_DocsisInited_callback()
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, soladdrKey, soladdrStr,0);
 
     if(!lan_wan_ready) {
-        snprintf(command, sizeof(command),"ip6tables -t mangle -I PREROUTING 1 -i %s -d %s -p ipv6-icmp -m icmp6 --icmpv6-type 135 -m limit --limit 20/sec -j ACCEPT", IFNAME_WAN_0, soladdrStr);
-        system(command);
+        v_secure_system("ip6tables -t mangle -I PREROUTING 1 -i %s -d %s -p ipv6-icmp -m icmp6 --icmpv6-type 135 -m limit --limit 20/sec -j ACCEPT", IFNAME_WAN_0, soladdrStr);
     }
     
     //StartDocsis();
