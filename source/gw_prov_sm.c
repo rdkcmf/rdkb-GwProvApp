@@ -322,6 +322,7 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 	if (objFlag == 1)
 	{
 		tlvObject=malloc(sizeof(Tr69TlvData));
+		memset(tlvObject,0,sizeof(Tr69TlvData));
 		objFlag = 0;
 	}
 	/* Check if its a fresh boot-up or a boot-up after factory reset*/
