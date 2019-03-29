@@ -2591,10 +2591,8 @@ int main(int argc, char *argv[])
     char sysevent_cmd[80];
     macaddr_t macAddr;
 #endif
-
     printf("Started gw_prov_utopia\n");
 
-#ifdef MULTILAN_FEATURE
 #if !defined(_PLATFORM_RASPBERRYPI_)
 
     #ifdef FEATURE_SUPPORT_RDKLOG
@@ -2638,6 +2636,7 @@ int main(int argc, char *argv[])
     SME_CreateEventHandler(obj);
     GWPROV_PRINT(" Creating Event Handler over\n");
 
+#ifdef MULTILAN_FEATURE
     /* Update LAN side base mac address */
     getNetworkDeviceMacAddress(&macAddr);
     snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%02x:%02x:%02x:%02x:%02x:%02x",
@@ -2670,64 +2669,13 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY);
     }
 
-
+#endif
 #else
     GWP_act_ProvEntry_callback();
     GWP_act_DocsisInited_callback();
 
     (void) pthread_join(sysevent_tid, NULL);
     (void) pthread_join(linkstate_tid, NULL);
-#endif
-#else
-#if !defined(_PLATFORM_RASPBERRYPI_)
-
-    #ifdef FEATURE_SUPPORT_RDKLOG
-       setenv("LOG4C_RCPATH","/rdklogger",1);
-       rdk_logger_init(DEBUG_INI_NAME);
-    #endif
-
-    GWPROV_PRINT(" Entry gw_prov_utopia\n");
-    if( findProcessId(argv[0]) > 0 )
-    {
-        printf("Already running\n");
-        GWPROV_PRINT(" gw_prov_utopia already running. Returning...\n");
-        return 1;
-    }
-
-    printf("Register exception handlers\n");
-    
-    registerProcessExceptionHandlers(argv[0]);
-
-    GWP_InitDB();
-
-    appCallBack *obj = NULL;
-    obj = (appCallBack*)malloc(sizeof(appCallBack));
-	
-    obj->pGWP_act_DocsisLinkDown_1 =  GWP_act_DocsisLinkDown_callback_1;
-    obj->pGWP_act_DocsisLinkDown_2 =  GWP_act_DocsisLinkDown_callback_2;
-    obj->pGWP_act_DocsisLinkUp = GWP_act_DocsisLinkUp_callback;
-    obj->pGWP_act_DocsisCfgfile = GWP_act_DocsisCfgfile_callback;
-    obj->pGWP_act_DocsisTftpOk = GWP_act_DocsisTftpOk_callback;
-    obj->pGWP_act_BefCfgfileEntry = GWP_act_BefCfgfileEntry_callback;
-    obj->pGWP_act_DocsisInited = GWP_act_DocsisInited_callback;
-    obj->pGWP_act_ProvEntry = GWP_act_ProvEntry_callback;
-    obj->pDocsis_gotEnable = docsis_gotEnable_callback;
-    obj->pGW_Tr069PaSubTLVParse = GW_Tr069PaSubTLVParse;
-#ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
-    obj->pGW_SetTopologyMode = GW_setTopologyMode;
-#endif
-    GWPROV_PRINT(" Creating Event Handler\n");
-    /* Command line - ignored */
-    SME_CreateEventHandler(obj);
-    GWPROV_PRINT(" Creating Event Handler over\n");
-#else
-    GWP_act_ProvEntry_callback();
-    GWP_act_DocsisInited_callback();
-
-    (void) pthread_join(sysevent_tid, NULL);
-    (void) pthread_join(linkstate_tid, NULL);
-#endif
-
 #endif
     return 0;
 }
