@@ -2635,6 +2635,8 @@ int main(int argc, char *argv[])
     (void) pthread_join(linkstate_tid, NULL);
 #endif
 #else
+#if !defined(_PLATFORM_RASPBERRYPI_)
+
     #ifdef FEATURE_SUPPORT_RDKLOG
        setenv("LOG4C_RCPATH","/rdklogger",1);
        rdk_logger_init(DEBUG_INI_NAME);
@@ -2674,6 +2676,14 @@ int main(int argc, char *argv[])
     /* Command line - ignored */
     SME_CreateEventHandler(obj);
     GWPROV_PRINT(" Creating Event Handler over\n");
+#else
+    GWP_act_ProvEntry_callback();
+    GWP_act_DocsisInited_callback();
+
+    (void) pthread_join(sysevent_tid, NULL);
+    (void) pthread_join(linkstate_tid, NULL);
+#endif
+
 #endif
     return 0;
 }
