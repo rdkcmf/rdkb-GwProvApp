@@ -2043,6 +2043,17 @@ void GWP_UpdateTr069CfgThread( void *data )
 								system( cmd );
 								GWPROV_PRINT(" %s \n",cmd);
 							}
+
+							if (TRUE == tlvObject->FreshBootUp)
+							{
+								tlvObject->FreshBootUp = FALSE;
+								FILE *TLVDataFile = fopen(TR69_TLVDATA_FILE, "wb");
+								if (TLVDataFile != NULL)
+								{
+									fwrite(tlvObject, sizeof(Tr69TlvData), sizeof(tlvObject), TLVDataFile);
+									fclose(TLVDataFile);
+								}
+							}
 						}
 
 						break;
