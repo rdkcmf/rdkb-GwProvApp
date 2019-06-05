@@ -77,6 +77,11 @@
 #include "rdk_debug.h"
 #endif
 
+//Added for lxcserver thread function
+#if defined(_PLATFORM_RASPBERRYPI_)
+#define PORT 8081
+#endif
+
 /* Global Variables*/
 char log_buff[1024];
 
@@ -217,6 +222,7 @@ static token_t sysevent_token_gs;
 static pthread_t sysevent_tid;
 #if defined(_PLATFORM_RASPBERRYPI_)
 static pthread_t linkstate_tid;
+static pthread_t lxcserver_tid;
 #endif
 static int phylink_wan_state = 0;
 static int once = 0;
@@ -1341,7 +1347,74 @@ static void check_lan_wan_ready()
 		}
 	}
 }
+#if defined(_PLATFORM_RASPBERRYPI_)
+/**************************************************************************/
+/*! \fn void *GWP_lxcserver_threadfunc(void *data)
+ **************************************************************************
+ *  \brief Function to process lxc based sysevent from other ccsp component 
+ *  \return 0
+**************************************************************************/
+static void *GWP_lxcserver_threadfunc(void *data)
+{
+    int server_fd, new_socket, valread;
+    struct sockaddr_in address;
+    int opt = 1;
+    int addrlen = sizeof(address);
+    char buffer[1024] = {0};
+    char *token = NULL;
 
+    // Creating socket file descriptor
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
+    {
+        perror("socket failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Forcefully attaching socket to the port 8080
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
+                                                  &opt, sizeof(opt)))
+    {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons( PORT );
+
+    // Forcefully attaching socket to the port 8080
+    if (bind(server_fd, (struct sockaddr *)&address,
+                                 sizeof(address))<0)
+    {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+    if (listen(server_fd, 3) < 0)
+    {
+        perror("listen");
+        exit(EXIT_FAILURE);
+    }
+    // To keep listening for client (pandm) connection
+    while(1)
+    {
+        if ((new_socket = accept(server_fd, (struct sockaddr *)&address,
+                       (socklen_t*)&addrlen))<0)
+        {
+            perror("accept");
+            exit(EXIT_FAILURE);
+        }
+       else
+           break;
+    }
+    // To keep listening for sys event message from pandm client
+    while(1)
+    {
+        valread = recv( new_socket , buffer, 1024,0);
+        printf("%s\n",buffer );
+        system(buffer);
+    }
+    return 0;
+}
+#endif
 /**************************************************************************/
 /*! \fn void *GWP_sysevent_threadfunc(void *data)
  **************************************************************************
@@ -2398,6 +2471,10 @@ static int GWP_act_DocsisInited_callback()
 **************************************************************************/
 static int GWP_act_ProvEntry_callback()
 {
+#if defined(_PLATFORM_RASPBERRYPI_)
+    int uid = 0;
+    uid = getuid();
+#endif
     int i;
     int sysevent_bridge_mode = 0;
 #if !defined(_PLATFORM_RASPBERRYPI_)
@@ -2460,7 +2537,10 @@ static int GWP_act_ProvEntry_callback()
     printf("************************value of command = %s***********************\n", command);
     system(command);
 #endif
-
+#if defined(_PLATFORM_RASPBERRYPI_)
+if( uid == 0 )
+{
+#endif
     sysevent_fd = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov", &sysevent_token);
 
     if (sysevent_fd >= 0)
@@ -2469,10 +2549,27 @@ static int GWP_act_ProvEntry_callback()
         GWPROV_PRINT(" Creating Thread  GWP_sysevent_threadfunc \n"); 
         pthread_create(&sysevent_tid, NULL, GWP_sysevent_threadfunc, NULL);
     }
-    
+#if defined(_PLATFORM_RASPBERRYPI_)
+}
+#endif      
     //Make another connection for gets/sets
+#if defined(_PLATFORM_RASPBERRYPI_)
+if ( uid == 0 )
+{
+#endif
     sysevent_fd_gs = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_prov-gs", &sysevent_token_gs);
-
+#if defined(_PLATFORM_RASPBERRYPI_)
+}
+#endif
+// rdkb rpi container :: lxcserver funbction is needed to run in host for listening event from ccsppandm
+#if defined(_PLATFORM_RASPBERRYPI_)
+    if( uid == 0 )
+    {
+        //rdkb rpi container :: lxc-server thread create
+        GWPROV_PRINT(" Creating Thread  GWP_lxcserver_threadfunc \n");
+        pthread_create(&lxcserver_tid, NULL, GWP_lxcserver_threadfunc, NULL);
+    }
+#endif
     /*if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf)
     {
         printf("Utopia init done, starting lan\n");
@@ -2606,6 +2703,10 @@ int main(int argc, char *argv[])
     char sysevent_cmd[80];
     macaddr_t macAddr;
 #endif
+#if defined(_PLATFORM_RASPBERRYPI_)
+     int uid = 0;
+     uid = getuid();
+#endif
     printf("Started gw_prov_utopia\n");
 
 #if !defined(_PLATFORM_RASPBERRYPI_)
@@ -2688,8 +2789,11 @@ int main(int argc, char *argv[])
 #else
     GWP_act_ProvEntry_callback();
     GWP_act_DocsisInited_callback();
-
+if( uid == 0 )
+{
     (void) pthread_join(sysevent_tid, NULL);
+    (void) pthread_join(lxcserver_tid, NULL);
+}
     (void) pthread_join(linkstate_tid, NULL);
 #endif
     return 0;
