@@ -1913,6 +1913,7 @@ static int GWP_act_DocsisLinkDown_callback_2()
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf)
     {
+#ifdef DSLITE_FEATURE_SUPPORT
        if(eRouterMode == DOCESAFE_ENABLE_IPv6_extIf || eRouterMode == DOCESAFE_ENABLE_IPv4_IPv6_extIf)
        {
            /*Need to clear the value of erouter0 IPv6 address event,
@@ -1924,6 +1925,7 @@ static int GWP_act_DocsisLinkDown_callback_2()
            be updated once erouter got the IPv6 address*/
            sysevent_set(sysevent_fd_gs, sysevent_token_gs, "firewall-restart", "",0);
        }
+#endif
        printf("Stopping wan service\n");
        GWPROV_PRINT(" Stopping wan service\n");
        t2_event_d("RF_ERROR_WAN_stop", 1);
