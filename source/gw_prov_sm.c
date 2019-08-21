@@ -1068,6 +1068,11 @@ static void GWP_UpdateERouterMode(void)
             webui_started = 0;
             active_mode = BRMODE_GLOBAL_BRIDGE; //This is set so that the callback from LanMode does not trigger another transition.
                                                 //The code here will here will handle it.
+#ifdef DSLITE_FEATURE_SUPPORT
+	     /* Modified In bridge mode DSLite should not start*/
+            /*Enter bridge mode, DSLite won't be triggered to start, so we need to clear the previous DSLite service buffered status*/
+            system("service_dslite clear &");
+#endif
             system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string bridge-static");
             
             GWP_DisableERouter();
@@ -1087,6 +1092,14 @@ static void GWP_UpdateERouterMode(void)
                 //mipieper -- dont disable erouter on bridge mode 
                 //eRouterMode = DOCESAFE_ENABLE_DISABLE;
             //}
+#ifdef DSLITE_FEATURE_SUPPORT
+            /* Modification to handle DSLite in IPV4 only mode */
+            /*If enter IPv4 only mode, DSLite also won't be triggered to start, clear the previous DSLite service buffered status*/
+            if(eRouterMode == DOCESAFE_ENABLE_IPv4_extIf)
+            {
+                system("service_dslite clear &");
+            }
+#endif
             /*else*/ if (oldRouterMode == DOCESAFE_ENABLE_DISABLE_extIf) // from disable to enable
             {
                 webui_started = 0;
@@ -1808,6 +1821,17 @@ static void *GWP_sysevent_threadfunc(void *data)
                 }
                 else
                     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "firewall-restart", "",0);
+#ifdef DSLITE_FEATURE_SUPPORT
+                    /* Modification for DSLite Service */
+                    if(!strcmp(val, ""))//If erouter0 IPv6 address is null
+                    {
+                        system("service_dslite stop &");
+                    }
+                    else
+                    {
+                        system("service_dslite restart &");
+                    }
+#endif
             }
 			else if (!strcmp(name, "wan-status") && !strcmp(val, "started")) {
 				if (!once) {
@@ -1874,6 +1898,17 @@ static int GWP_act_DocsisLinkDown_callback_2()
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf)
     {
+       if(eRouterMode == DOCESAFE_ENABLE_IPv6_extIf || eRouterMode == DOCESAFE_ENABLE_IPv4_IPv6_extIf)
+       {
+           /*Need to clear the value of erouter0 IPv6 address event,
+           otherwise the sysevent tr_erouter0_dhcpv6_client_v6addr won't
+           be triggered if the erouter0 get the same IPv6 address when link up.
+           The DSLite also need to be stopped when link down, and will be started when link up*/
+           system("sysevent set tr_erouter0_dhcpv6_client_v6addr");
+           /*Clear the IPv6 rules that maybe block the DHCPv6 response when link up, those rules will
+           be updated once erouter got the IPv6 address*/
+           sysevent_set(sysevent_fd_gs, sysevent_token_gs, "firewall-restart", "",0);
+       }
        printf("Stopping wan service\n");
        GWPROV_PRINT(" Stopping wan service\n");
        t2_event_d("RF_ERROR_WAN_stop", 1);
