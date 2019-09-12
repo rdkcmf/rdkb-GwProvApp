@@ -77,6 +77,10 @@
 #include "rdk_debug.h"
 #endif
 
+
+#if defined(_XB6_PRODUCT_REQ_)
+#include "platform_hal.h"
+#endif
 //Added for lxcserver thread function
 #if defined(_PLATFORM_RASPBERRYPI_)
 #define PORT 8081
@@ -84,6 +88,11 @@
 
 /* Global Variables*/
 char log_buff[1024];
+
+#define WHITE	0
+#define RED	3
+#define SOLID	0
+#define BLINK	1
 
 /**************************************************************************/
 /*      DEFINES:                                                          */
@@ -1437,6 +1446,7 @@ static void *GWP_sysevent_threadfunc(void *data)
     async_id_t wan_status_asyncid;
     async_id_t ipv6_prefix_asyncid;
     async_id_t pnm_asyncid;
+    async_id_t ping_status_asyncid;
 
 #if defined (INTEL_PUMA7)
     //Intel Proposed RDKB Generic Bug Fix from XB6 SDK	
@@ -1465,6 +1475,10 @@ static void *GWP_sysevent_threadfunc(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "pnm-status",  &pnm_asyncid);
 #endif
 
+#if defined(_XB6_PRODUCT_REQ_)
+
+    sysevent_setnotification(sysevent_fd, sysevent_token, "ping-status",  &ping_status_asyncid);
+#endif
 #if defined (INTEL_PUMA7)
     //Intel Proposed RDKB Generic Bug Fix from XB6 SDK		
     /* Registering to get notification for IPv4 address assigned to erouter */
@@ -1503,6 +1517,15 @@ static void *GWP_sysevent_threadfunc(void *data)
         char* l3net_inst = NULL;
 #endif
 
+
+#if defined(_XB6_PRODUCT_REQ_)
+ 	LEDMGMT_PARAMS ledMgmt;
+#endif
+
+	FILE *responsefd=NULL;
+      	char *networkResponse = "/var/tmp/networkresponse.txt";
+        int iresCode = 0 , iRet = 0;
+        char responseCode[10]={0}, cp_enable[10]={0}, redirect_flag[10]={0};
         err = sysevent_getnotification(sysevent_fd, sysevent_token, name, &namelen,  val, &vallen, &getnotification_asyncid);
 
         if (err)
@@ -1511,7 +1534,7 @@ static void *GWP_sysevent_threadfunc(void *data)
 		     * Log should come for every 1hour 
 		     * - time_now = getting current time 
 		     * - difference between time now and previous time is greater than 
-		     *    3600 seconds
+-	     *    3600 seconds
 		     * - time_before = getting current time as for next iteration 
 		     *    checking		     
 		     */	
@@ -1592,6 +1615,83 @@ static void *GWP_sysevent_threadfunc(void *data)
                         LAN_start();
                 }
             }
+#if defined(_XB6_PRODUCT_REQ_)
+            else if (strcmp(name, "ping-status") == 0)
+            {
+  
+                 GWPROV_PRINT("Received ping-status event notification, ping-status value is %s\n", val);
+		 memset(&ledMgmt, 0, sizeof(LEDMGMT_PARAMS));
+
+                if (strcmp(val, "missed")==0)
+                {
+
+			ledMgmt.LedColor = RED;
+			ledMgmt.State	 = SOLID;
+			ledMgmt.Interval = 0;
+
+                        GWPROV_PRINT("Ping missed, Setting LED to RED\n");
+			if(0 != platform_hal_setLed(&ledMgmt)) {
+
+				GWPROV_PRINT("platform_hal_setLed failed\n");
+			}
+		
+			// Set LED state to RED
+                }
+                else if (strcmp(val, "received")==0)
+                {
+		    // Set LED state based on whether device is in CP or not
+	
+		    ledMgmt.LedColor = WHITE;
+
+		    ledMgmt.State  = SOLID;
+		    ledMgmt.Interval = 0;
+		    
+		    iRet = syscfg_get(NULL, "CaptivePortal_Enable", cp_enable, sizeof(cp_enable));
+		
+		    if ( ( iRet == 0 ) && ( strcmp(cp_enable,"true") == 0 ) )
+		    {
+			
+			iRet=0;
+		   	iRet = syscfg_get(NULL, "redirection_flag", redirect_flag, sizeof(redirect_flag));
+			if ( ( iRet == 0 ) &&  (strcmp(redirect_flag,"true") == 0 ) )
+			{
+				
+           	    		if((responsefd = fopen(networkResponse, "r")) != NULL)
+            	    		{
+                			if(fgets(responseCode, sizeof(responseCode), responsefd) != NULL)
+                			{
+                    				iresCode = atoi(responseCode);
+                			}
+
+                        		fclose(responsefd);
+                			responsefd = NULL;
+					if ( 204 == iresCode )
+					{
+						
+						ledMgmt.State	 = BLINK;
+						ledMgmt.Interval = 1;
+					}
+            	    		}
+				
+			}
+		    }
+		    
+		    if ( BLINK == ledMgmt.State )
+		    {
+                        GWPROV_PRINT("Device is in Captive Portal, setting WHITE LED to blink\n");
+		    }
+		    else
+		    {
+                    	GWPROV_PRINT("Device is not in Captive Portal, setting LED to SOLID WHITE \n");
+		    }
+
+		    if(0 != platform_hal_setLed(&ledMgmt)) {
+			GWPROV_PRINT("platform_hal_setLed failed\n");
+
+		    }
+              }
+            }
+#endif
             /*else if (strcmp(name, "snmp_subagent-status") == 0 && !snmp_inited)
             {
                 snmp_inited = 1;
