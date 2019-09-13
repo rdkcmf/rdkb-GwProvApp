@@ -393,6 +393,7 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 				tlvObject->EnableCWMP = gwTlvsLocalDB.tlv2.EnableCWMP;
 				break;
 			case GW_SUBTLV_TR069_URL_EXTIF:
+				memset(tlvObject->URL,0,sizeof(tlvObject->URL));
 				strcpy(tlvObject->URL,gwTlvsLocalDB.tlv2.URL);
 				strcpy(url,tlvObject->URL);
                 		break;
@@ -410,7 +411,7 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 	
 	}
 	else
-	{	
+	{
 		/*In case of Normal bootup*/
 		GWPROV_PRINT(" Normal Bootup \n");
 		tlvObject->FreshBootUp = FALSE;
@@ -424,6 +425,7 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 				{
 					// This is to make sure that we always use boot config supplied URL
 					// during TR69 initialization
+					memset(tlvObject->URL,0,sizeof(tlvObject->URL));
 					strcpy(tlvObject->URL,gwTlvsLocalDB.tlv2.URL);
 				}
 				break;
@@ -444,8 +446,8 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 	if (file != NULL)
 	{
 		fseek(file, 0, SEEK_SET);
-		fwrite(tlvObject, sizeof(Tr69TlvData), sizeof(tlvObject), file);
-		fclose(file);		
+		fwrite(tlvObject, sizeof(Tr69TlvData), 1, file);
+		fclose(file);
 	}
 	
 
@@ -2051,7 +2053,7 @@ void GWP_UpdateTr069CfgThread( void *data )
 								FILE *TLVDataFile = fopen(TR69_TLVDATA_FILE, "wb");
 								if (TLVDataFile != NULL)
 								{
-									fwrite(tlvObject, sizeof(Tr69TlvData), sizeof(tlvObject), TLVDataFile);
+									fwrite(tlvObject, sizeof(Tr69TlvData), 1, TLVDataFile);
 									fclose(TLVDataFile);
 								}
 							}
