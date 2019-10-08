@@ -1649,7 +1649,7 @@ static void *GWP_sysevent_threadfunc(void *data)
 #endif
                    
                     if (!hotspot_started) {
-#if defined(INTEL_PUMA7) || defined(_COSA_BCM_MIPS_) || defined(_COSA_BCM_ARM_)
+#if defined(INTEL_PUMA7) || defined(_COSA_BCM_MIPS_) || defined(_COSA_BCM_ARM_) ||  defined(_COSA_INTEL_XB3_ARM_)
                         printf("Not Calling hotspot-start for XB3,XB6 and CBR it will be done in \
 				cosa_start_rem.sh,hotspot.service and xfinity_hotspot_bridge_setup.sh respectively\n");
 #else
