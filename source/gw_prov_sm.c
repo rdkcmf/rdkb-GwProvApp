@@ -68,6 +68,10 @@
 #include "gw_prov_abstraction.h"
 #include "Tr69_Tlv.h"
 #include <autoconf.h>
+#ifdef AUTOWAN_ENABLE
+#include "autowan.h"
+#include "gw_prov_sm.h"
+#endif
 #if !defined(_PLATFORM_RASPBERRYPI_)
 #include "docsis_esafe_db.h"
 #endif
@@ -89,8 +93,9 @@
 #endif
 
 /* Global Variables*/
+#if !defined(AUTOWAN_ENABLE)
 char log_buff[1024];
-
+#endif
 #define WHITE	0
 #define RED	3
 #define SOLID	0
@@ -146,6 +151,7 @@ char log_buff[1024];
 #define BASE_MAC_WLAN_OFFSET                 145
 #endif
 
+#if !defined(AUTOWAN_ENABLE)
 #ifdef FEATURE_SUPPORT_RDKLOG
 #define GWPROV_PRINT(fmt ...)    {\
 				    				snprintf(log_buff, 1023, fmt);\
@@ -153,6 +159,7 @@ char log_buff[1024];
                                  }
 #else
 #define GWPROV_PRINT printf
+#endif
 #endif
 
 static Tr69TlvData *tlvObject=NULL;
@@ -228,8 +235,13 @@ static DOCSIS_Esafe_Db_extIf_e eRouterMode = DOCESAFE_ENABLE_DISABLE_extIf;
 static DOCSIS_Esafe_Db_extIf_e oldRouterMode;
 static int sysevent_fd;
 static token_t sysevent_token;
+#if !defined(AUTOWAN_ENABLE)
 static int sysevent_fd_gs;
 static token_t sysevent_token_gs;
+#else
+int sysevent_fd_gs;
+token_t sysevent_token_gs;
+#endif
 static pthread_t sysevent_tid;
 #if defined(_PLATFORM_RASPBERRYPI_)
 static pthread_t linkstate_tid;
@@ -2709,6 +2721,11 @@ if( uid == 0 )
         GWPROV_PRINT(" Creating Thread  GWP_sysevent_threadfunc \n"); 
         pthread_create(&sysevent_tid, NULL, GWP_sysevent_threadfunc, NULL);
     }
+#ifdef AUTOWAN_ENABLE
+	bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+	if(bridge_mode == 0)
+	AutoWAN_main();
+#endif
 #if defined(_PLATFORM_RASPBERRYPI_)
 }
 #endif      
