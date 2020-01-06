@@ -1718,7 +1718,8 @@ static void *GWP_sysevent_threadfunc(void *data)
                              GWP_DisableERouter();
                         }
                         system("/bin/sh /etc/webgui.sh");
-#else
+#elif defined(_COSA_INTEL_XB3_ARM_) || defined(_CBR_PRODUCT_REQ_)
+                        // For other devices CcspWebUI.service launches the GUI processes
                         startWebUIProcess();
 #endif
                         webui_started = 1 ;
