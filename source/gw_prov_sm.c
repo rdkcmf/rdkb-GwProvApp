@@ -78,6 +78,8 @@
 #endif
 
 
+#include <telemetry_busmessage_sender.h>
+
 #if defined(_XB6_PRODUCT_REQ_)
 #include "platform_hal.h"
 #endif
@@ -772,8 +774,13 @@ static int GWP_SysCfgGetInt(const char *name)
 static int GWP_SysCfgSetInt(const char *name, int int_value)
 {
    char value[20];
+
    sprintf(value, "%d", int_value);
-	GWPROV_PRINT(" %s : name = %s , value = %s \n", __FUNCTION__, name, value);
+   GWPROV_PRINT(" %s : name = %s , value = %s \n", __FUNCTION__, name, value);
+   if (!strncmp(name, "last_erouter_mode", strlen("last_erouter_mode")) && !strncmp(value, "2", strlen("2")))
+   {
+       t2_event_d("SYS_INFO_ERouter_Mode_2", 1);
+   }
    return syscfg_set(NULL, name, value);
 }
 
@@ -1320,6 +1327,9 @@ static void check_lan_wan_ready()
 	GWPROV_PRINT(" wan-status = %s\n", wan_st);
 	GWPROV_PRINT(" ipv6_prefix = %s\n", ipv6_prefix);
 	GWPROV_PRINT(" eRouterMode = %d\n", eRouterMode);
+	if (eRouterMode == 2) {
+		t2_event_d("SYS_INFO_ErouterMode2", 1);
+	}
 	GWPROV_PRINT(" bridge_mode = %d\n", bridge_mode);
 
 	if (bridge_mode != 0 || eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf)
@@ -1867,6 +1877,7 @@ static int GWP_act_DocsisLinkDown_callback_2()
     {
        printf("Stopping wan service\n");
        GWPROV_PRINT(" Stopping wan service\n");
+       t2_event_d("RF_ERROR_WAN_stop", 1);
        system("sysevent set wan-stop");
    #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
        system("sysevent set dhcpv6_client-stop");
