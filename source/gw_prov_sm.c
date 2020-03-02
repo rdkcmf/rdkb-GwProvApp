@@ -912,9 +912,10 @@ static void GWP_EnableERouter(void)
 //Actually enter router mode
 static void GWP_EnterRouterMode(void)
 {
-    char sysevent_cmd[80];
-	char MocaPreviousStatus[16];
-	int prev;
+         char sysevent_cmd[80] = {0};
+         /* Coverity Issue Fix - CID:71381 : UnInitialised varible */
+	char MocaPreviousStatus[16] = {0};
+       	int prev;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     if (eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf)
          return;
@@ -982,7 +983,7 @@ static void GWP_EnterBridgeMode(void)
     /* Reset Switch, to remove all VLANs */ 
     // GSWT_ResetSwitch();
     //DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_NOT_INITIATED);
-    char sysevent_cmd[80];
+    char sysevent_cmd[80] = {0};
 	char MocaStatus[16];
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
 	memset(MocaStatus,sizeof(MocaStatus),0);
@@ -1016,7 +1017,8 @@ static void GWP_EnterPseudoBridgeMode(void)
 //     GWP_UpdateEsafeAdminMode(eRouterMode);
 //     DOCSIS_ESAFE_SetErouterOperMode(DOCESAFE_EROUTER_OPER_NOIPV4_NOIPV6);
 //     DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_IN_PROGRESS);
-    char sysevent_cmd[80];
+    char sysevent_cmd[80] = {0};
+	
 char MocaStatus[16];
 
 	memset(MocaStatus,sizeof(MocaStatus),0);
@@ -1785,8 +1787,9 @@ static void *GWP_sysevent_threadfunc(void *data)
 					}
                 }
             } else if (strcmp(name, "tr_" ER_NETDEVNAME "_dhcpv6_client_v6addr") == 0) {
-                Uint8 v6addr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
-                Uint8 soladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
+                Uint8 v6addr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ] = {0};
+                /* Coverity Issue Fix - CID:79291 : UnInitialised varible  */
+                Uint8 soladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ] = {0} ;
                 inet_pton(AF_INET6, val, v6addr);
 #if !defined(_PLATFORM_RASPBERRYPI_)
                 getMultiCastGroupAddress(v6addr,soladdr);
@@ -2250,8 +2253,9 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
     cfgFileBuff = malloc(cfgFileBuffLen);
     if (cfgFileBuff == NULL)
     {
-        printf("Cannot alloc buffer for eSafe Config file \"%s\", aborting Config file\n", cfgFileName, strerror(errno));
-        GWPROV_PRINT(" Cannot alloc buffer for eSafe Config file \"%s\", aborting Config file\n", cfgFileName, strerror(errno));
+        /* Coverity Issue Fix - CID:125400  : Printf Args*/
+        printf("Cannot alloc buffer for eSafe Config file \"%s\", %s, aborting Config file\n", cfgFileName, strerror(errno));
+        GWPROV_PRINT(" Cannot alloc buffer for eSafe Config file \"%s\", %s, aborting Config file\n", cfgFileName, strerror(errno));
         goto gimReply;
     }
 
@@ -2429,10 +2433,11 @@ static int GWP_act_DocsisInited_callback()
     DOCSIS_Esafe_Db_extIf_e eRouterModeTmp;
 #endif
     char macstr[20];
-    Uint8 lladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
-    Uint8 soladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ];
-    char soladdrKey[64];
-    char soladdrStr[64];
+    Uint8 lladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ] = {0};
+    Uint8 soladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ] = {0};
+    char soladdrKey[64] = { 0 };
+    /* Coverity Issue Fix - CID:73933 : UnInitialised variable */
+    char soladdrStr[64] = {0};
     int sysevent_bridge_mode = 0;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
 #if !defined(_PLATFORM_RASPBERRYPI_)
@@ -2711,7 +2716,7 @@ if ( uid == 0 )
 	printf("Non-XB3 case bridge_mode and eRouterMode are already initialized\n");
 #endif
 
-    char sysevent_cmd[80];
+    char sysevent_cmd[80] = { 0 };
     snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", sysevent_bridge_mode);
     system(sysevent_cmd);
 
