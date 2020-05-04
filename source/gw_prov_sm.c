@@ -59,11 +59,17 @@
 #include <sys/types.h>
 #endif
 #include <unistd.h>
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(INTEL_PUMA7)
 #include <ruli.h>
 #endif
 #include <sysevent/sysevent.h>
+#if defined(INTEL_PUMA7)
+#include "CC-ARM/sys_types.h"
+#include "CC-ARM/sys_nettypes.h"
+#include "generic_tlv_parser.h"
+#else
 #include <syscfg/syscfg.h>
+#endif
 #include <pthread.h>
 #include "gw_prov_abstraction.h"
 #include "Tr69_Tlv.h"
@@ -190,6 +196,9 @@ typedef struct _GwTlvsLocalDB
 #define BUF_SIZE 256
 #endif
 
+#if defined(INTEL_PUMA7)
+extern CLIENT* Cgm_GatewayApiProxy_Init(void);
+#endif
 
 /**************************************************************************/
 /*      LOCAL DECLARATIONS:                                               */
@@ -872,6 +881,14 @@ static void GWP_DocsisInited(void)
     /* Register the eRouter  */
     getNetworkDeviceMacAddress(&macAddr);
 
+#if defined (_PROPOSED_BUG_FIX_)
+    GWPROV_PRINT("After calling getNetworkDeviceMacAddress MacAddr is \
+                    [%02X:%02X:%02X:%02X:%02X:%02X]\n",
+                    macAddr.hw[0],macAddr.hw[1],
+                    macAddr.hw[2],macAddr.hw[3],
+                    macAddr.hw[4],macAddr.hw[5]);
+#endif
+
     eSafeDevice_Initialize(&macAddr);
        
     eSafeDevice_SetProvisioningStatusProgress(ESAFE_PROV_STATE_NOT_INITIATED_extIf);
@@ -882,11 +899,13 @@ static void GWP_DocsisInited(void)
            
      eSafeDevice_AddeRouterPhysicalNetworkInterface("usb0",True);
 
+#if !defined(INTEL_PUMA7)
     /* Register on more events */
     registerDocsisEvents();
     
     if(factory_mode)
         LAN_start();
+#endif
 
 }
 
@@ -1550,7 +1569,8 @@ static void *GWP_sysevent_threadfunc(void *data)
         int err;
         async_id_t getnotification_asyncid;
 #ifdef MULTILAN_FEATURE
-        char brlan0_inst[BRG_INST_SIZE], brlan1_inst[BRG_INST_SIZE];
+        char brlan0_inst[BRG_INST_SIZE] = {0};
+        char brlan1_inst[BRG_INST_SIZE] = {0};
         char* l3net_inst = NULL;
 #endif
 
@@ -1742,12 +1762,23 @@ static void *GWP_sysevent_threadfunc(void *data)
 		 GWPROV_PRINT(" primary_lan_l3net received \n");              
                 if (pnm_inited)
                  {
+
+#if defined (_PROPOSED_BUG_FIX_)
+                    GWPROV_PRINT("***STARTING LAN***\n");
+#endif
+
                     LAN_start();
                  }
                 netids_inited = 1;
             }
             else if (strcmp(name, "lan-status") == 0 || strcmp(name, "bridge-status") == 0 ) 
             {
+
+#if defined (_PROPOSED_BUG_FIX_)
+                GWPROV_PRINT("***LAN STATUS/BRIDGE STATUS RECIEVED****\n");
+                GWPROV_PRINT("THE EVENT =%s VALUE=%s\n",name,val);
+#endif
+
                 if (strcmp(val, "started") == 0) {
                     if (!webui_started) { 
 #if defined(_PLATFORM_RASPBERRYPI_)
@@ -1767,10 +1798,8 @@ static void *GWP_sysevent_threadfunc(void *data)
 #endif
                     }
 #ifdef MULTILAN_FEATURE
-        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "primary_lan_l3net", buf, sizeof(buf));
-        strncpy(brlan0_inst, buf, BRG_INST_SIZE-1);
-        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "homesecurity_lan_l3net", buf, sizeof(buf));
-        strncpy(brlan1_inst, buf, BRG_INST_SIZE-1);
+        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "primary_lan_l3net", brlan0_inst, sizeof(brlan0_inst));
+        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "homesecurity_lan_l3net", brlan1_inst, sizeof(brlan1_inst));
 
         /*Get the active bridge instances and bring up the bridges */
         sysevent_get(sysevent_fd_gs, sysevent_token_gs, "l3net_instances", buf, sizeof(buf));
@@ -2395,12 +2424,14 @@ static int GWP_act_StartActiveUnprovisioned()
 	
     printf("Starting ActiveUnprovisioned processes\n");
 
+#if !defined(INTEL_PUMA7)
     /* Add paths for eRouter dev counters */
     printf("Adding PP paths\n");
     cmdline = "add "IFNAME_ETH_0" cni0 " ER_NETDEVNAME " in";
     COMMONUTILS_file_write("/proc/net/ti_pp_path", cmdline, strlen(cmdline));
     cmdline = "add cni0 "IFNAME_ETH_0" " ER_NETDEVNAME " out";
     COMMONUTILS_file_write("/proc/net/ti_pp_path", cmdline, strlen(cmdline));
+#endif
 
     /*printf("Starting COSA services\n");
     system("sh /etc/utopia/service.d/service_cosa.sh cosa-start");*/
@@ -2489,7 +2520,7 @@ static int GWP_act_DocsisInited_callback()
     char soladdrStr[64] = {0};
     int sysevent_bridge_mode = 0;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(INTEL_PUMA7)
     /* Docsis initialized */
     printf("Got DOCSIS Initialized\n");
 
@@ -2550,7 +2581,19 @@ static int GWP_act_DocsisInited_callback()
 #if !defined(_PLATFORM_RASPBERRYPI_)
     GWP_DocsisInited();
 #endif
-  
+
+#if defined(_PROPOSED_BUG_FIX_)
+	/* Setting erouter0 MAC address after Docsis Init */
+    printf("Loading erouter0 network interface driver\n");
+    {
+       macaddr_t macAddr;
+
+       getNetworkDeviceMacAddress(&macAddr);
+
+       setNetworkDeviceMacAddress(ER_NETDEVNAME,&macAddr);
+    }
+#endif
+
       system("sysevent set docsis-initialized 1");
 #if !defined(_PLATFORM_RASPBERRYPI_)
 
@@ -2658,8 +2701,10 @@ static int GWP_act_ProvEntry_callback()
 /* TODO: OEM to implement swctl apis */
 
     /* Register on docsis Init event */
+#if !defined(INTEL_PUMA7) 
     GWPROV_PRINT(" registerDocsisInitEvents \n");    
-    registerDocsisInitEvents(); 
+    registerDocsisInitEvents();
+#endif
     GWPROV_PRINT(" Calling /etc/utopia/utopia_init.sh \n"); 
     system("/etc/utopia/utopia_init.sh");
 
@@ -2776,7 +2821,7 @@ if ( uid == 0 )
 
     /* Now that we have the ICC que (SME) and we are registered on the docsis INIT    */
     /* event, we can notify PCD to continue                                           */
-#if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(INTEL_PUMA7)
     sendProcessReadySignal();
 #endif
 
@@ -2862,7 +2907,18 @@ static void LAN_start() {
     char _4_to_6_status[2]={0};
     int dslite_enable=0;
 #endif
-    GWPROV_PRINT(" Entry %s \n", __FUNCTION__);      
+    GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
+
+#if defined (_PROPOSED_BUG_FIX_)
+    // LAN Start May Be Delayed so refresh modes.
+    GWPROV_PRINT("The Previous EROUTERMODE=%d\n",eRouterMode);
+    GWPROV_PRINT("The Previous BRIDGE MODE=%d\n",bridge_mode);
+    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
+    GWPROV_PRINT("The Refreshed EROUTERMODE=%d\n",eRouterMode);
+    GWPROV_PRINT("The Refreshed BRIDGE MODE=%d\n",bridge_mode);
+#endif
+
     if (bridge_mode == 0 && eRouterMode != 0) // mipieper - add erouter check for pseudo bridge. Can remove if bridge_mode is forced in response to erouter_mode.
     {
         printf("Utopia starting lan...\n");
@@ -2929,6 +2985,7 @@ int main(int argc, char *argv[])
     #endif
 
     GWPROV_PRINT(" Entry gw_prov_utopia\n");
+#if !defined(INTEL_PUMA7)
     if( findProcessId(argv[0]) > 0 )
     {
         printf("Already running\n");
@@ -2941,28 +2998,35 @@ int main(int argc, char *argv[])
     registerProcessExceptionHandlers(argv[0]);
 
     GWP_InitDB();
+#else
+    Cgm_GatewayApiProxy_Init();
+    printf("API Proxy RPC handle initialized.");
+#endif //!defined(INTEL_PUMA7)
 
     appCallBack *obj = NULL;
     obj = (appCallBack*)malloc(sizeof(appCallBack));
-	
-    obj->pGWP_act_DocsisLinkDown_1 =  GWP_act_DocsisLinkDown_callback_1;
-    obj->pGWP_act_DocsisLinkDown_2 =  GWP_act_DocsisLinkDown_callback_2;
-    obj->pGWP_act_DocsisLinkUp = GWP_act_DocsisLinkUp_callback;
-    obj->pGWP_act_DocsisCfgfile = GWP_act_DocsisCfgfile_callback;
-    obj->pGWP_act_DocsisTftpOk = GWP_act_DocsisTftpOk_callback;
-    obj->pGWP_act_BefCfgfileEntry = GWP_act_BefCfgfileEntry_callback;
-    obj->pGWP_act_DocsisInited = GWP_act_DocsisInited_callback;
-    obj->pGWP_act_ProvEntry = GWP_act_ProvEntry_callback;
-    obj->pDocsis_gotEnable = docsis_gotEnable_callback;
-    obj->pGW_Tr069PaSubTLVParse = GW_Tr069PaSubTLVParse;
+
+    if(obj != NULL)
+    {
+    	obj->pGWP_act_DocsisLinkDown_1 =  GWP_act_DocsisLinkDown_callback_1;
+    	obj->pGWP_act_DocsisLinkDown_2 =  GWP_act_DocsisLinkDown_callback_2;
+    	obj->pGWP_act_DocsisLinkUp = GWP_act_DocsisLinkUp_callback;
+    	obj->pGWP_act_DocsisCfgfile = GWP_act_DocsisCfgfile_callback;
+    	obj->pGWP_act_DocsisTftpOk = GWP_act_DocsisTftpOk_callback;
+    	obj->pGWP_act_BefCfgfileEntry = GWP_act_BefCfgfileEntry_callback;
+    	obj->pGWP_act_DocsisInited = GWP_act_DocsisInited_callback;
+    	obj->pGWP_act_ProvEntry = GWP_act_ProvEntry_callback;
+    	obj->pDocsis_gotEnable = docsis_gotEnable_callback;
+    	obj->pGW_Tr069PaSubTLVParse = GW_Tr069PaSubTLVParse;
 #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
-    obj->pGW_SetTopologyMode = GW_setTopologyMode;
+    	obj->pGW_SetTopologyMode = GW_setTopologyMode;
 #endif
 
-    GWPROV_PRINT(" Creating Event Handler\n");
-    /* Command line - ignored */
-    SME_CreateEventHandler(obj);
-    GWPROV_PRINT(" Creating Event Handler over\n");
+    	GWPROV_PRINT(" Creating Event Handler\n");
+    	/* Command line - ignored */
+    	SME_CreateEventHandler(obj);
+    	GWPROV_PRINT(" Creating Event Handler over\n");
+    } //if(obj != NULL)
 
 #else
     GWP_act_ProvEntry_callback();
