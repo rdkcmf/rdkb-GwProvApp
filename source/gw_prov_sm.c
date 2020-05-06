@@ -89,6 +89,7 @@
 
 
 #include <telemetry_busmessage_sender.h>
+#include "safec_lib_common.h"
 
 #if defined(_XB6_PRODUCT_REQ_)
 #include "platform_hal.h"
@@ -200,14 +201,58 @@ typedef struct _GwTlvsLocalDB
 extern CLIENT* Cgm_GatewayApiProxy_Init(void);
 #endif
 
+typedef enum {
+    EROUTER_MODE,
+    IPV4STATUS,
+    IPV6STATUS,
+    SYSTEM_RESTART,
+    BRING_LAN,
+    PNM_STATUS,
+    PING_STATUS,
+    SNMP_SUBAGENT_STATUS,
+    PRIMARY_LAN_13NET,
+    LAN_STATUS,
+    BRIDGE_STATUS,
+    DHCPV6_CLIENT_V6ADDR,
+    WAN_STATUS,
+    IPV6_PREFIX,
+    CURRENT_WAN_IPADDR,
+    IPV6_DHCP6_ADDR,
+    GWP_THREAD_ERROR
+} eGwpThreadType;
+
+typedef struct
+{
+    char         *msgStr; 
+    eGwpThreadType mType;       
+} GwpThread_MsgItem;
+
+GwpThread_MsgItem gwpthreadMsgArr[] = {
+    {"erouter_mode",                               EROUTER_MODE},
+    {"ipv4-status",                                IPV4STATUS},
+    {"ipv6-status",                                IPV6STATUS},
+    {"system-restart",                             SYSTEM_RESTART},
+    {"bring-lan",                                  BRING_LAN},
+    {"pnm-status",                                 PNM_STATUS},
+    {"ping-status",                                PING_STATUS},
+    {"snmp_subagent-status",                       SNMP_SUBAGENT_STATUS},
+    {"primary_lan_l3net",                          PRIMARY_LAN_13NET},
+    {"lan-status",                                 LAN_STATUS},
+    {"bridge-status",                              BRIDGE_STATUS},
+    {"tr_" ER_NETDEVNAME "_dhcpv6_client_v6addr",  DHCPV6_CLIENT_V6ADDR},
+    {"wan-status",                                 WAN_STATUS},
+    {"ipv6_prefix",                                IPV6_PREFIX},
+    {"current_wan_ipaddr",                         CURRENT_WAN_IPADDR},
+    {"ipv6_dhcp6_addr",                            IPV6_DHCP6_ADDR}};
+
 /**************************************************************************/
 /*      LOCAL DECLARATIONS:                                               */
 /**************************************************************************/
 
 /*! New implementation */
 static void GW_Local_PrintHexStringToStderr(Uint8 *str, Uint16 len);
-static void GW_SetTr069PaMibBoolean(Uint8 **cur, Uint8 sub_oid, Uint8 value);
-static void GW_SetTr069PaMibString(Uint8 **cur, Uint8 sub_oid, Uint8* value);
+static bool GW_SetTr069PaMibBoolean(Uint8 **cur, Uint8 sub_oid, Uint8 value);
+static bool GW_SetTr069PaMibString(Uint8 **cur, Uint8 sub_oid, Uint8* value);
 static STATUS GW_TlvParserInit(void);
 //static TlvParseCallbackStatus_e GW_SetTr069PaCfg(Uint8 type, Uint16 length, const Uint8* value);
 static TlvParseCallbackStatusExtIf_e GW_Tr069PaSubTLVParse(Uint8 type, Uint16 length, const Uint8* value);
@@ -275,6 +320,30 @@ static int sIPv6_acquired = 0;
 static void GWP_EnterBridgeMode(void);
 static void GWP_EnterRouterMode(void);
 
+eGwpThreadType Get_GwpThreadType(char * name)
+{
+    errno_t rc       = -1;
+    int     ind      = -1;
+    eGwpThreadType ret = GWP_THREAD_ERROR;
+
+    if (name != NULL && name[0] != '\0')
+    {
+        int i;
+        for (i = 0; i < GWP_THREAD_ERROR; i++) {
+            rc = strcmp_s(gwpthreadMsgArr[i].msgStr,strlen(gwpthreadMsgArr[i].msgStr),name,&ind);
+            ERR_CHK(rc);
+
+            if((ind==0) && (rc == EOK))
+            {
+                ret = gwpthreadMsgArr[i].mType;
+                break;
+            }
+        }
+    }
+
+    return ret;
+}
+
 static int getSyseventBridgeMode(int erouterMode, int bridgeMode) {
         
     //Erouter mode takes precedence over bridge mode. If erouter is disabled, 
@@ -335,9 +404,11 @@ static int getSyseventBridgeMode(int erouterMode, int bridgeMode) {
  **************************************************************************/
 static STATUS GW_TlvParserInit(void)
 {
+    errno_t rc = -1;
     /*Initialize local DB*/
     // GW_FreeTranstAddrAccessList();
-    memset(&gwTlvsLocalDB, 0, sizeof(gwTlvsLocalDB));
+    rc =  memset_s(&gwTlvsLocalDB,sizeof(gwTlvsLocalDB), 0, sizeof(gwTlvsLocalDB));
+    ERR_CHK(rc);
 
     /*Open the SNMP response socket*/
     // GW_CreateSnmpResponseSocket();
@@ -374,17 +445,23 @@ int IsFileExists(const char *fname)
 #define TRUE 1
 static char url[600] = {0};
 
-static void WriteTr69TlvData(Uint8 typeOfTLV)
+static bool WriteTr69TlvData(Uint8 typeOfTLV)
 {
 	FILE *fp;
 	int bFirstNode = 0;
 	int ret,tempFile;
+	errno_t rc = -1;
 	GWPROV_PRINT(" Entry %s : typeOfTLV %d \n", __FUNCTION__, typeOfTLV);
 	
 	if (objFlag == 1)
 	{
 		tlvObject=malloc(sizeof(Tr69TlvData));
-		memset(tlvObject,0,sizeof(Tr69TlvData));
+		if(tlvObject == NULL)
+		{
+			return FALSE;
+		}
+        rc =  memset_s(tlvObject,sizeof(Tr69TlvData), 0, sizeof(Tr69TlvData));
+        ERR_CHK(rc);
 		objFlag = 0;
 	}
 	/* Check if its a fresh boot-up or a boot-up after factory reset*/
@@ -413,7 +490,7 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 	{
 		printf("TLV data file can't be opened \n");
 		GWPROV_PRINT(" TLV data file can't be opened \n");
-		return;
+		return FALSE;
 	}
 
 	if(tlvObject->FreshBootUp == TRUE)
@@ -425,9 +502,20 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 				tlvObject->EnableCWMP = gwTlvsLocalDB.tlv2.EnableCWMP;
 				break;
 			case GW_SUBTLV_TR069_URL_EXTIF:
-				memset(tlvObject->URL,0,sizeof(tlvObject->URL));
-				strcpy(tlvObject->URL,gwTlvsLocalDB.tlv2.URL);
-				strcpy(url,tlvObject->URL);
+                        rc =  memset_s(tlvObject->URL,sizeof(tlvObject->URL), 0, sizeof(tlvObject->URL));
+                        ERR_CHK(rc);
+				        rc = strcpy_s(tlvObject->URL,sizeof(tlvObject->URL),gwTlvsLocalDB.tlv2.URL);
+                        if(rc != EOK)
+                        { 
+	                        ERR_CHK(rc);
+                            return FALSE;
+                        }
+				        rc = strcpy_s(url,sizeof(url),tlvObject->URL);
+                        if(rc != EOK)
+                        {
+                            ERR_CHK(rc);
+                            return FALSE;
+                        }
                 		break;
 			case GW_SUBTLV_TR069_USERNAME_EXTIF:                			
         		case GW_SUBTLV_TR069_PASSWORD_EXTIF:
@@ -457,8 +545,14 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 				{
 					// This is to make sure that we always use boot config supplied URL
 					// during TR69 initialization
-					memset(tlvObject->URL,0,sizeof(tlvObject->URL));
-					strcpy(tlvObject->URL,gwTlvsLocalDB.tlv2.URL);
+                rc =  memset_s(tlvObject->URL,sizeof(tlvObject->URL), 0, sizeof(tlvObject->URL));
+                ERR_CHK(rc);
+   			    rc = strcpy_s(tlvObject->URL,sizeof(tlvObject->URL),gwTlvsLocalDB.tlv2.URL);
+                if(rc != EOK)
+                {
+                    ERR_CHK(rc);
+                    return FALSE;
+                }
 				}
 				break;
 			case GW_SUBTLV_TR069_USERNAME_EXTIF:                			
@@ -482,11 +576,12 @@ static void WriteTr69TlvData(Uint8 typeOfTLV)
 		fclose(file);
 	}
 	
-
+return TRUE;
 }
 
 static TlvParseCallbackStatusExtIf_e GW_Tr069PaSubTLVParse(Uint8 type, Uint16 length, const Uint8* value)
 {
+    errno_t rc = -1;
     GWPROV_PRINT(" %s : type %d, length %d , value %d\n", __FUNCTION__, type, length,*value);
     switch(type)
     {
@@ -501,7 +596,12 @@ static TlvParseCallbackStatusExtIf_e GW_Tr069PaSubTLVParse(Uint8 type, Uint16 le
         case GW_SUBTLV_TR069_URL_EXTIF:
             if (length <= GW_TR069_TLV_MAX_URL_LEN) 
             {
-                memcpy(gwTlvsLocalDB.tlv2.URL, value, length);
+		rc = memcpy_s(gwTlvsLocalDB.tlv2.URL, sizeof(gwTlvsLocalDB.tlv2.URL), value, length);
+                if(rc != EOK)
+                {
+                    ERR_CHK(rc);
+                    return TLV_PARSE_CALLBACK_ABORT_EXTIF;
+                }
                 gwTlvsLocalDB.tlv2.URL[length] = '\0';
                 gwTlvsLocalDB.tlv2_flags.URL_modified = 1;
             }
@@ -511,7 +611,12 @@ static TlvParseCallbackStatusExtIf_e GW_Tr069PaSubTLVParse(Uint8 type, Uint16 le
         case GW_SUBTLV_TR069_USERNAME_EXTIF:
             if (length <= GW_TR069_TLV_MAX_USERNAME_LEN) 
             {
-                memcpy(gwTlvsLocalDB.tlv2.Username, value, length);
+                rc = memcpy_s(gwTlvsLocalDB.tlv2.Username, sizeof(gwTlvsLocalDB.tlv2.Username), value, length);
+                if(rc != EOK)
+                {
+                    ERR_CHK(rc);
+                    return TLV_PARSE_CALLBACK_ABORT_EXTIF;
+                }
                 gwTlvsLocalDB.tlv2.Username[length] = '\0';
                 gwTlvsLocalDB.tlv2_flags.Username_modified = 1;
             }
@@ -521,7 +626,12 @@ static TlvParseCallbackStatusExtIf_e GW_Tr069PaSubTLVParse(Uint8 type, Uint16 le
         case GW_SUBTLV_TR069_PASSWORD_EXTIF:
             if (length <= GW_TR069_TLV_MAX_PASSWORD_LEN) 
             {
-                memcpy(gwTlvsLocalDB.tlv2.Password, value, length);
+                rc = memcpy_s(gwTlvsLocalDB.tlv2.Password, sizeof(gwTlvsLocalDB.tlv2.Password), value, length);
+                if(rc != EOK)
+                {
+                    ERR_CHK(rc);
+                    return TLV_PARSE_CALLBACK_ABORT_EXTIF;
+                }
                 gwTlvsLocalDB.tlv2.Password[length] = '\0';
                 gwTlvsLocalDB.tlv2_flags.Password_modified = 1;
             }
@@ -531,7 +641,12 @@ static TlvParseCallbackStatusExtIf_e GW_Tr069PaSubTLVParse(Uint8 type, Uint16 le
         case GW_SUBTLV_TR069_CONNREQ_USERNAME_EXTIF:
             if (length <= GW_TR069_TLV_MAX_USERNAME_LEN) 
             {
-                memcpy(gwTlvsLocalDB.tlv2.ConnectionRequestUsername, value, length);
+                rc = memcpy_s(gwTlvsLocalDB.tlv2.ConnectionRequestUsername, sizeof(gwTlvsLocalDB.tlv2.ConnectionRequestUsername), value, length);
+                if(rc != EOK)
+                {
+                    ERR_CHK(rc);
+                    return TLV_PARSE_CALLBACK_ABORT_EXTIF;
+                }
                 gwTlvsLocalDB.tlv2.ConnectionRequestUsername[length] = '\0';
                 gwTlvsLocalDB.tlv2_flags.ConnectionRequestUsername_modified = 1;
             }
@@ -541,7 +656,12 @@ static TlvParseCallbackStatusExtIf_e GW_Tr069PaSubTLVParse(Uint8 type, Uint16 le
         case GW_SUBTLV_TR069_CONNREQ_PASSWORD_EXTIF:
             if (length <= GW_TR069_TLV_MAX_PASSWORD_LEN) 
             {
-                memcpy(gwTlvsLocalDB.tlv2.ConnectionRequestPassword, value, length);
+                rc = memcpy_s(gwTlvsLocalDB.tlv2.ConnectionRequestPassword, sizeof(gwTlvsLocalDB.tlv2.ConnectionRequestPassword), value, length);
+                if(rc != EOK)
+                {
+                    ERR_CHK(rc);
+                    return TLV_PARSE_CALLBACK_ABORT_EXTIF;
+                }
                 gwTlvsLocalDB.tlv2.ConnectionRequestPassword[length] = '\0';
                 gwTlvsLocalDB.tlv2_flags.ConnectionRequestPassword_modified = 1;
             }
@@ -561,8 +681,14 @@ static TlvParseCallbackStatusExtIf_e GW_Tr069PaSubTLVParse(Uint8 type, Uint16 le
             break;
     }
 			
-    WriteTr69TlvData(type); 
-    return TLV_PARSE_CALLBACK_OK_EXTIF;
+    if(WriteTr69TlvData(type))
+	{		
+        return TLV_PARSE_CALLBACK_OK_EXTIF;
+	}
+	else
+	{
+	    return TLV_PARSE_CALLBACK_ABORT_EXTIF;
+	}
 }
 
 // All MIB entries in hex are: 30 total_len oid_base oid_value 00 data_type data_len data
@@ -589,14 +715,23 @@ static Uint8 GW_Tr069PaMibOidBase[12] = { 0x06, 0x0c, 0x2b, 0x06, 0x01, 0x04, 0x
 /* TR-069 MIB DATA TYPE LENGTH */
 #define GW_TR069_MIB_DATATYPE_LEN_BOOL                   0x01
 
-static void GW_SetTr069PaMibBoolean(Uint8 **cur, Uint8 sub_oid, Uint8 value)
+#define SNMP_DATA_BUF_SIZE 1000
+
+static bool GW_SetTr069PaMibBoolean(Uint8 **cur, Uint8 sub_oid, Uint8 value)
 {
     Uint8 *mark;
     Uint8 *current = *cur;
+    errno_t rc = -1;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     // SEQUENCE (0x30); Skip total length (1-byte, to be filled later)
     *(current++) = 0x30; current++; mark = current; 
-    memcpy(current, GW_Tr069PaMibOidBase, 12);  current += 12;  
+    rc = memcpy_s(current, SNMP_DATA_BUF_SIZE, GW_Tr069PaMibOidBase, sizeof(GW_Tr069PaMibOidBase));
+    if(rc != EOK)
+    {
+        ERR_CHK(rc);
+        return FALSE;
+    }
+    current += 12;  
     *(current++) = sub_oid;
     *(current++) = GW_TR069_MIB_SUB_OID_INSTANCE_NUM;
     *(current++) = GW_TR069_MIB_DATATYPE_BOOL; 
@@ -605,24 +740,42 @@ static void GW_SetTr069PaMibBoolean(Uint8 **cur, Uint8 sub_oid, Uint8 value)
     *(mark-1) = (Uint8)(current - mark);
 
     *cur = current;
+	return TRUE;
 }
 
-static void GW_SetTr069PaMibString(Uint8 **cur, Uint8 sub_oid, Uint8* value)
+static bool GW_SetTr069PaMibString(Uint8 **cur, Uint8 sub_oid, Uint8* value)
 {
     Uint8 *mark;
     Uint8 *current = *cur;
+    errno_t rc = -1;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     // SEQUENCE (0x30); Skip total length (1-byte, to be filled later)
     *(current++) = 0x30; current++; mark = current; 
-    memcpy(current, GW_Tr069PaMibOidBase, 12);  current += 12;  
+    rc = memcpy_s(current, SNMP_DATA_BUF_SIZE, GW_Tr069PaMibOidBase, sizeof(GW_Tr069PaMibOidBase));
+    if(rc != EOK)
+    {
+        ERR_CHK(rc);
+        return FALSE;
+    }
+    current += 12;  
     *(current++) = sub_oid;
     *(current++) = GW_TR069_MIB_SUB_OID_INSTANCE_NUM;
     *(current++) = GW_TR069_MIB_DATATYPE_STRING; 
     *(current++) = (Uint8)strlen(value);
-    if(*(current-1)) { memcpy(current, value, *(current-1)); current += *(current-1);}
+    if(*(current-1))
+    {
+        rc = memcpy_s(current, SNMP_DATA_BUF_SIZE, value, *(current-1));
+        if(rc != EOK)
+        {
+           ERR_CHK(rc);
+           return FALSE;
+        }
+        current += *(current-1);
+    }
     *(mark-1) = (Uint8)(current - mark);
 
     *cur = current;
+	return TRUE;
 }
 
 static STATUS GW_SetTr069PaDataInTLV11Buffer(Uint8* buf, Int* len)
@@ -630,53 +783,80 @@ static STATUS GW_SetTr069PaDataInTLV11Buffer(Uint8* buf, Int* len)
     Uint8 *ptr = buf;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     // EnableCWMP
-    if(gwTlvsLocalDB.tlv2_flags.EnableCWMP_modified)
-        GW_SetTr069PaMibBoolean(&ptr, GW_TR069_MIB_SUB_OID_ENABLE_CWMP, (Uint8)(gwTlvsLocalDB.tlv2.EnableCWMP));
-
+    if(gwTlvsLocalDB.tlv2_flags.EnableCWMP_modified){
+        if(!GW_SetTr069PaMibBoolean(&ptr, GW_TR069_MIB_SUB_OID_ENABLE_CWMP, (Uint8)(gwTlvsLocalDB.tlv2.EnableCWMP)))
+		{
+			return STATUS_NOK;
+		}
+	}
     // URL
-    if(gwTlvsLocalDB.tlv2_flags.URL_modified)
-        GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_URL, (Uint8*)(gwTlvsLocalDB.tlv2.URL));
-
+    if(gwTlvsLocalDB.tlv2_flags.URL_modified){
+        if(!GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_URL, (Uint8*)(gwTlvsLocalDB.tlv2.URL)))
+		{
+		     return STATUS_NOK;	
+		}
+    }
     // Username
-    if(gwTlvsLocalDB.tlv2_flags.Username_modified)
-        GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_USERNAME, (Uint8*)(gwTlvsLocalDB.tlv2.Username));
+    if(gwTlvsLocalDB.tlv2_flags.Username_modified){
+        if(!GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_USERNAME, (Uint8*)(gwTlvsLocalDB.tlv2.Username)))
+		{
+		   return STATUS_NOK;	
+		}
+	}
 
     // Password
-    if(gwTlvsLocalDB.tlv2_flags.Password_modified)
-        GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_PASSWORD, (Uint8*)(gwTlvsLocalDB.tlv2.Password));
-
+    if(gwTlvsLocalDB.tlv2_flags.Password_modified){
+        if(!GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_PASSWORD, (Uint8*)(gwTlvsLocalDB.tlv2.Password)))
+		{
+			return STATUS_NOK;
+		}
+	}
     // ConnectionRequestUsername
-    if(gwTlvsLocalDB.tlv2_flags.ConnectionRequestUsername_modified)
-        GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_CONNREQ_USERNAME, (Uint8*)(gwTlvsLocalDB.tlv2.ConnectionRequestUsername));
+    if(gwTlvsLocalDB.tlv2_flags.ConnectionRequestUsername_modified){
+        if(!GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_CONNREQ_USERNAME, (Uint8*)(gwTlvsLocalDB.tlv2.ConnectionRequestUsername)))
+		{
+			return STATUS_NOK;
+		}
+	}
 
     // ConnectRequestPassword
-    if(gwTlvsLocalDB.tlv2_flags.ConnectionRequestPassword_modified)
-        GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_CONNREQ_PASSWORD, (Uint8*)(gwTlvsLocalDB.tlv2.ConnectionRequestPassword));
+    if(gwTlvsLocalDB.tlv2_flags.ConnectionRequestPassword_modified){
+        if(!GW_SetTr069PaMibString(&ptr, GW_TR069_MIB_SUB_OID_CONNREQ_PASSWORD, (Uint8*)(gwTlvsLocalDB.tlv2.ConnectionRequestPassword)))
+		{
+		     return STATUS_NOK;	
+		}
+	}
 
     // ACSOverride
-    if(gwTlvsLocalDB.tlv2_flags.AcsOverride_modified)
-        GW_SetTr069PaMibBoolean(&ptr, GW_TR069_MIB_SUB_OID_ALLOW_DOCSIS_CONFIG, (Uint8)(gwTlvsLocalDB.tlv2.ACSOverride));
+    if(gwTlvsLocalDB.tlv2_flags.AcsOverride_modified){
+        if(!GW_SetTr069PaMibBoolean(&ptr, GW_TR069_MIB_SUB_OID_ALLOW_DOCSIS_CONFIG, (Uint8)(gwTlvsLocalDB.tlv2.ACSOverride)))
+		{
+			return STATUS_NOK;
+		}
+	}
 
     *len = ptr - buf;
 
     return STATUS_OK;
 }
 
-#define SNMP_DATA_BUF_SIZE 1000
-
 static STATUS GW_UpdateTr069Cfg(void)
-{
+{   
+    errno_t rc = -1;
     /* SNMP TLV's data buffer*/
-    Uint8 Snmp_Tlv11Buf[SNMP_DATA_BUF_SIZE];
+    Uint8 Snmp_Tlv11Buf[SNMP_DATA_BUF_SIZE] = {0};
     Int Snmp_Tlv11BufLen = 0;
     STATUS ret = STATUS_OK;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     /*Init the data buffer*/
-    memset(Snmp_Tlv11Buf, 0, SNMP_DATA_BUF_SIZE);
 
     /*Convert TLV 202.2 data into TLV11 data*/
-    GW_SetTr069PaDataInTLV11Buffer(Snmp_Tlv11Buf, &Snmp_Tlv11BufLen);
-
+    ret = GW_SetTr069PaDataInTLV11Buffer(Snmp_Tlv11Buf, &Snmp_Tlv11BufLen);
+    if (ret == STATUS_NOK)
+	{
+		return ret;
+	}
+	
     /*
     fprintf(stderr, "<RT> %s - Snmp \n", __FUNCTION__);
     GW_Local_PrintHexStringToStderr(Snmp_Tlv11Buf, Snmp_Tlv11BufLen);
@@ -700,17 +880,23 @@ static STATUS GW_UpdateTr069Cfg(void)
             LOG_GW_ERROR("Failed to allocate dynamic memory");
             goto label_nok;
         }
-        memset(tlv11Resp, 0, sizeof(SnmpaIfResponse_t)+sizeof(int));
-
+        rc =  memset_s(tlv11Resp,sizeof(SnmpaIfResponse_t)+sizeof(int), 0, sizeof(SnmpaIfResponse_t)+sizeof(int));
+        ERR_CHK(rc);
         /* Set TLV11 whitin whole config file and TLV11 duplication test */
         ret = (STATUS)SNMPAIF_SetTLV11Config(SNMP_AGENT_CTRL_SOCK, (void *)Snmp_Tlv11Buf, (int)Snmp_Tlv11BufLen, tlv11Resp);
 
         if(tlv11Resp->len >= sizeof(int))
         {
             Int32 errorCode = 0;
-            memcpy(&errorCode, tlv11Resp->value, sizeof(int));
+
+	    /*
+             * Copy the error code
+             */
+	    errorCode = (int) *(tlv11Resp->value);
+
             /*Need to send the required event*/
             // ReportTlv11Events(errorCode);
+
             LOG_GW_ERROR("Failed to set TLV11 parameters - error code = %d", errorCode);
             // fprintf(stderr, "<RT> %s - Failed to set TLV11 parameters - error code = %d\n", __FUNCTION__, errorCode);
         }
@@ -1015,9 +1201,8 @@ static void GWP_EnterBridgeMode(void)
     // GSWT_ResetSwitch();
     //DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_NOT_INITIATED);
     char sysevent_cmd[80] = {0};
-	char MocaStatus[16];
+	char MocaStatus[16]  = {0};
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
-	memset(MocaStatus,sizeof(MocaStatus),0);
 	syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
 	GWPROV_PRINT(" MoCA_current_status = %s \n", MocaStatus);
 	if ((syscfg_set(NULL, "MoCA_previous_status", MocaStatus) != 0)) 
@@ -1050,9 +1235,8 @@ static void GWP_EnterPseudoBridgeMode(void)
 //     DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_IN_PROGRESS);
     char sysevent_cmd[80] = {0};
 	
-char MocaStatus[16];
+char MocaStatus[16] = {0};
 
-	memset(MocaStatus,sizeof(MocaStatus),0);
 	syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
 	GWPROV_PRINT(" MoCA_current_status = %s \n", MocaStatus);
 	if ((syscfg_set(NULL, "MoCA_previous_status", MocaStatus) != 0)) 
@@ -1353,11 +1537,13 @@ static int GWP_ProcessIpv6Up(void)
 
 static void check_lan_wan_ready()
 {
-	char br_st[16];
-	char lan_st[16];
-	char wan_st[16];
-	char ipv6_prefix[128];
+	char br_st[16] = { 0 };
+	char lan_st[16] = { 0 };
+	char wan_st[16] = { 0 };
+	char ipv6_prefix[128] = { 0 };
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
+        errno_t rc = -1;
+        int ind = -1;
 		
 	sysevent_get(sysevent_fd_gs, sysevent_token_gs, "bridge-status", br_st, sizeof(br_st));
 	sysevent_get(sysevent_fd_gs, sysevent_token_gs, "lan-status", lan_st, sizeof(lan_st));
@@ -1380,7 +1566,9 @@ static void check_lan_wan_ready()
 
 	if (bridge_mode != 0 || eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf)
 	{
-		if (!strcmp(br_st, "started"))
+                rc = strcmp_s("started", strlen("started"), br_st, &ind);
+                ERR_CHK(rc);
+                if ((!ind) && (rc == EOK))
 		{
             sysevent_set(sysevent_fd_gs, sysevent_token_gs, "start-misc", "ready", 0);
 			once = 1;
@@ -1390,26 +1578,48 @@ static void check_lan_wan_ready()
 	{
 		if (eRouterMode == DOCESAFE_ENABLE_IPv4_extIf)
 		{
-			if (!strcmp(lan_st, "started") && !strcmp(wan_st, "started"))
+                        rc = strcmp_s("started", strlen("started"),lan_st, &ind);
+                        ERR_CHK(rc);
+                        if ((!ind) && (rc == EOK))
 			{
+                            rc = strcmp_s("started", strlen("started"),wan_st, &ind);
+                            ERR_CHK(rc);
+                            if ((!ind) && (rc == EOK))
+                            {
 				sysevent_set(sysevent_fd_gs, sysevent_token_gs, "start-misc", "ready", 0);
 				once = 1;
-			}
+			    }
+                        }
 		}
 		else if (eRouterMode == DOCESAFE_ENABLE_IPv4_IPv6_extIf)
 		{
-			if (!strcmp(lan_st, "started") && (!strcmp(wan_st, "started")) && strlen(ipv6_prefix))
+			if (strlen(ipv6_prefix))
 			{
-				sysevent_set(sysevent_fd_gs, sysevent_token_gs, "start-misc", "ready", 0);
-				once = 1;
+                            rc = strcmp_s("started", strlen("started"),lan_st, &ind);
+                            ERR_CHK(rc);
+                            if ((!ind) && (rc == EOK))
+                            {
+                                rc = strcmp_s("started", strlen("started"),wan_st, &ind);
+                                ERR_CHK(rc);
+                                if ((!ind) && (rc == EOK))
+				{
+                                    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "start-misc", "ready", 0);
+				    once = 1;
+                                }
+                             }
 			}
 		}
 		else if (eRouterMode == DOCESAFE_ENABLE_IPv6_extIf)
 		{
-			if (!strcmp(lan_st, "started") && strlen(ipv6_prefix))
+			if (strlen(ipv6_prefix))
 			{
-				sysevent_set(sysevent_fd_gs, sysevent_token_gs, "start-misc", "ready", 0);
+                            rc = strcmp_s("started", strlen("started"),lan_st, &ind);
+                            ERR_CHK(rc);
+                            if ((!ind) && (rc == EOK))
+			    {
+                            	sysevent_set(sysevent_fd_gs, sysevent_token_gs, "start-misc", "ready", 0);
 				once = 1;
+                            }
 			}
 		}
 	}
@@ -1512,6 +1722,8 @@ static void *GWP_sysevent_threadfunc(void *data)
 
     char buf[10];
 	time_t time_now = { 0 }, time_before = { 0 };
+        errno_t rc = -1;
+        int ind = -1;        
     
     GWPROV_PRINT(" Entry %s \n", __FUNCTION__); 
     sysevent_setnotification(sysevent_fd, sysevent_token, "erouter_mode", &erouter_mode_asyncid);
@@ -1550,8 +1762,15 @@ static void *GWP_sysevent_threadfunc(void *data)
 //         netids_inited = 1;
 //     
 //     sysevent_get(sysevent_fd, sysevent_token, "snmp_subagent-status", buf, sizeof(buf));
-//     if (buf[0] != '\0' && strcmp("started",buf)==0 )
-//         snmp_inited = 1;
+//     if (buf[0] != '\0')
+//     {
+//         rc = strcmp_s("started", strlen("started"),buf, &ind);
+//         ERR_CHK(rc);
+//         if ((ind == 0) && (rc == EOK))
+//         {
+//            snmp_inited = 1;
+//         }
+//     } 
 //     
 //     if(netids_inited && snmp_inited && !factory_mode) {
 //         LAN_start();
@@ -1568,6 +1787,10 @@ static void *GWP_sysevent_threadfunc(void *data)
         int vallen  = sizeof(val);
         int err;
         async_id_t getnotification_asyncid;
+        errno_t rc = -1;
+        errno_t rc1 = -1;
+        int ind = -1;
+        int ind1 = -1;
 #ifdef MULTILAN_FEATURE
         char brlan0_inst[BRG_INST_SIZE] = {0};
         char brlan1_inst[BRG_INST_SIZE] = {0};
@@ -1608,7 +1831,9 @@ static void *GWP_sysevent_threadfunc(void *data)
         else
         {
 		GWPROV_PRINT(" %s : name = %s, val = %s \n", __FUNCTION__, name, val );
-            if (strcmp(name, "erouter_mode")==0)
+            eGwpThreadType ret_value;            
+            ret_value = Get_GwpThreadType(name);            
+            if (ret_value == EROUTER_MODE)
             {
                 oldRouterMode = eRouterMode;
                 eRouterMode = atoi(val);
@@ -1625,45 +1850,59 @@ static void *GWP_sysevent_threadfunc(void *data)
                 sleep(5);
                 system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.RebootDevice string Device"); // Reboot on change of device mode and backup logs.
             }
-            else if (strcmp(name, "ipv4-status") == 0)
+            else if (ret_value == IPV4STATUS)
             {
-                if (strcmp(val, "up")==0)
+                rc = strcmp_s("up", strlen("up"),val, &ind);
+                ERR_CHK(rc);
+                if ((ind == 0) && (rc == EOK))
                 {
 #if !defined(_PLATFORM_RASPBERRYPI_)
                     GWP_ProcessIpv4Up();
 #endif
                 }
-                else if (strcmp(val, "down")==0)
+                else 
                 {
+                    rc = strcmp_s("down", strlen("down"),val, &ind);
+                    ERR_CHK(rc);
+                    if ((ind == 0) && (rc == EOK))
+                    {
 #if !defined(_PLATFORM_RASPBERRYPI_)
-                    GWP_ProcessIpv4Down();
+                         GWP_ProcessIpv4Down();
 #endif
+                    }
                 }
             }
-            else if (strcmp(name, "ipv6-status") == 0)
+            else if (ret_value == IPV6STATUS)
             {
-                if (strcmp(val, "up")==0)
+                rc = strcmp_s("up", strlen("up"),val, &ind);
+                ERR_CHK(rc);
+                if ((ind == 0) && (rc == EOK))
                 {
 #if !defined(_PLATFORM_RASPBERRYPI_)
                     GWP_ProcessIpv6Up();
 #endif
                 }
-                else if (strcmp(val, "down")==0)
+                else 
                 {
+                    rc = strcmp_s("down", strlen("down"),val, &ind);
+                    ERR_CHK(rc);
+                    if ((ind == 0) && (rc == EOK))
+                    {
 #if !defined(_PLATFORM_RASPBERRYPI_)
-                    GWP_ProcessIpv6Down();
+                        GWP_ProcessIpv6Down();
 #endif
+                     }
                 }
             }
-            else if (strcmp(name, "system-restart") == 0)
+            else if (ret_value == SYSTEM_RESTART)
             {
                 printf("gw_prov_sm: got system restart\n");
                 GWP_ProcessUtopiaRestart();
             }
 #if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
-            else if (strcmp(name, "bring-lan") == 0)
+            else if (ret_value == BRING_LAN)           
 #else
-            else if (strcmp(name, "pnm-status") == 0)
+            else if (ret_value == PNM_STATUS)
 #endif 
             {
 		 GWPROV_PRINT(" bring-lan/pnm-status received \n");                
@@ -1673,13 +1912,16 @@ static void *GWP_sysevent_threadfunc(void *data)
                 }
             }
 #if defined(_XB6_PRODUCT_REQ_)
-            else if (strcmp(name, "ping-status") == 0)
+            else if (ret_value == PING_STATUS)
             {
   
                  GWPROV_PRINT("Received ping-status event notification, ping-status value is %s\n", val);
-		 memset(&ledMgmt, 0, sizeof(LEDMGMT_PARAMS));
+                 rc =  memset_s(&ledMgmt,sizeof(LEDMGMT_PARAMS), 0, sizeof(LEDMGMT_PARAMS));
+                 ERR_CHK(rc);
 
-                if (strcmp(val, "missed")==0)
+                rc = strcmp_s("missed", strlen("missed"),val, &ind);
+                ERR_CHK(rc);
+                if ((ind == 0) && (rc == EOK))
                 {
 
 			ledMgmt.LedColor = RED;
@@ -1694,9 +1936,13 @@ static void *GWP_sysevent_threadfunc(void *data)
 		
 			// Set LED state to RED
                 }
-                else if (strcmp(val, "received")==0)
+                else 
                 {
-		    // Set LED state based on whether device is in CP or not
+		   rc = strcmp_s("received", strlen("received"),val, &ind);
+                   ERR_CHK(rc);
+                   if ((ind == 0) && (rc == EOK))
+                   {
+                   // Set LED state based on whether device is in CP or not
 	
 		    ledMgmt.LedColor = WHITE;
 
@@ -1705,14 +1951,20 @@ static void *GWP_sysevent_threadfunc(void *data)
 		    
 		    iRet = syscfg_get(NULL, "CaptivePortal_Enable", cp_enable, sizeof(cp_enable));
 		
-		    if ( ( iRet == 0 ) && ( strcmp(cp_enable,"true") == 0 ) )
+		    if ( iRet == 0  )
 		    {
-			
+                        rc = strcmp_s("true", strlen("true"),cp_enable, &ind);
+                        ERR_CHK(rc);
+                        if ((ind == 0) && (rc == EOK))
+			{
 			iRet=0;
 		   	iRet = syscfg_get(NULL, "redirection_flag", redirect_flag, sizeof(redirect_flag));
-			if ( ( iRet == 0 ) &&  (strcmp(redirect_flag,"true") == 0 ) )
+			if (  iRet == 0  )
 			{
-				
+		            rc = strcmp_s("true", strlen("true"),redirect_flag, &ind);
+                            ERR_CHK(rc);
+                            if ((ind == 0) && (rc == EOK))
+                            {
            	    		if((responsefd = fopen(networkResponse, "r")) != NULL)
             	    		{
                 			if(fgets(responseCode, sizeof(responseCode), responsefd) != NULL)
@@ -1728,9 +1980,10 @@ static void *GWP_sysevent_threadfunc(void *data)
 						ledMgmt.State	 = BLINK;
 						ledMgmt.Interval = 1;
 					}
-            	    		}
-				
-			}
+            	    		 }
+			     }
+			 }
+                       }
 		    }
 		    
 		    if ( BLINK == ledMgmt.State )
@@ -1746,18 +1999,20 @@ static void *GWP_sysevent_threadfunc(void *data)
 			GWPROV_PRINT("platform_hal_setLed failed\n");
 
 		    }
+                }
               }
             }
 #endif
-            /*else if (strcmp(name, "snmp_subagent-status") == 0 && !snmp_inited)
+            /*else if (ret_value == SNMP_SUBAGENT_STATUS && !snmp_inited)
             {
+
                 snmp_inited = 1;
                 if (netids_inited) {
                     if(!factory_mode)
                         LAN_start();
                 }
             }*/ 
-            else if (strcmp(name, "primary_lan_l3net") == 0)
+            else if (ret_value == PRIMARY_LAN_13NET)
             {
 		 GWPROV_PRINT(" primary_lan_l3net received \n");              
                 if (pnm_inited)
@@ -1771,18 +2026,22 @@ static void *GWP_sysevent_threadfunc(void *data)
                  }
                 netids_inited = 1;
             }
-            else if (strcmp(name, "lan-status") == 0 || strcmp(name, "bridge-status") == 0 ) 
+            else if (ret_value == LAN_STATUS || ret_value == BRIDGE_STATUS ) 
             {
 
 #if defined (_PROPOSED_BUG_FIX_)
                 GWPROV_PRINT("***LAN STATUS/BRIDGE STATUS RECIEVED****\n");
                 GWPROV_PRINT("THE EVENT =%s VALUE=%s\n",name,val);
 #endif
-
-                if (strcmp(val, "started") == 0) {
+                rc = strcmp_s("started", strlen("started"),val, &ind);
+                ERR_CHK(rc);
+                if ((ind == 0) && (rc == EOK)){
                     if (!webui_started) { 
 #if defined(_PLATFORM_RASPBERRYPI_)
-                       if(strcmp(name, "bridge-status") == 0) {
+
+                       rc = strcmp_s("bridge-status", strlen("bridge-status"),name, &ind);
+                       ERR_CHK(rc);
+                       if ((ind == 0) && (rc == EOK)) {
                              GWP_DisableERouter();
                         }
                         system("/bin/sh /etc/webgui.sh");
@@ -1800,14 +2059,17 @@ static void *GWP_sysevent_threadfunc(void *data)
 #ifdef MULTILAN_FEATURE
         sysevent_get(sysevent_fd_gs, sysevent_token_gs, "primary_lan_l3net", brlan0_inst, sizeof(brlan0_inst));
         sysevent_get(sysevent_fd_gs, sysevent_token_gs, "homesecurity_lan_l3net", brlan1_inst, sizeof(brlan1_inst));
-
         /*Get the active bridge instances and bring up the bridges */
         sysevent_get(sysevent_fd_gs, sysevent_token_gs, "l3net_instances", buf, sizeof(buf));
         l3net_inst = strtok(buf, " ");
         while(l3net_inst != NULL)
         {
+            rc = strcmp_s(l3net_inst, strlen(l3net_inst),brlan0_inst, &ind);
+            ERR_CHK(rc);
+            rc1 = strcmp_s(l3net_inst, strlen(l3net_inst),brlan1_inst, &ind1);
+            ERR_CHK(rc1);
             /*brlan0 and brlan1 are already up. We should not call their instances again*/
-            if(!((strcmp(l3net_inst, brlan0_inst)==0) || (strcmp(l3net_inst, brlan1_inst)==0)))
+            if(!(((ind == 0) && (rc == EOK)) || ((ind1 == 0) && (rc1 == EOK))))
             {
                 sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv4-up", l3net_inst, 0);
             }
@@ -1840,7 +2102,7 @@ static void *GWP_sysevent_threadfunc(void *data)
 						check_lan_wan_ready();
 					}
                 }
-            } else if (strcmp(name, "tr_" ER_NETDEVNAME "_dhcpv6_client_v6addr") == 0) {
+            } else if (ret_value == DHCPV6_CLIENT_V6ADDR) {
                 Uint8 v6addr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ] = {0};
                 /* Coverity Issue Fix - CID:79291 : UnInitialised varible  */
                 Uint8 soladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ] = {0} ;
@@ -1877,29 +2139,38 @@ static void *GWP_sysevent_threadfunc(void *data)
                     }
 #endif
             }
-			else if (!strcmp(name, "wan-status") && !strcmp(val, "started")) {
-				if (!once) {
+			else if (ret_value == WAN_STATUS) {
+                                rc = strcmp_s("started", strlen("started"),val, &ind);
+                                ERR_CHK(rc);
+                                if ((!ind) && (rc == EOK))
+				{ 
+                                    if (!once) {
 						check_lan_wan_ready();
 					}
+                                 }
 			}
-			else if (!strcmp(name, "ipv6_prefix") && strlen(val) > 5) {
+			else if (ret_value == IPV6_PREFIX && strlen(val) > 5) {
 				if (!once) {
 						check_lan_wan_ready();
 					}
 			}
 #if defined (INTEL_PUMA7)
 			//Intel Proposed RDKB Generic Bug Fix from XB6 SDK
-			else if (strcmp(name, "current_wan_ipaddr") == 0)
+			else if (ret_value == CURRENT_WAN_IPADDR)
             {
                 /* Set the "ipv4-status" to "up" when there is an IPv4 address assigned to gateway WAN interface */
 				sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv4-status", "up", 0);
-                if (!sIPv4_acquired && val && strcmp(val, "0.0.0.0"))
+                if (!sIPv4_acquired && val )
                 {
-                    setGWP_ipv4_event();
-                    sIPv4_acquired = 1; /* Setting it here, to send IPv4 event only once. Ignore any further RENEW messages */
+                    rc = strcmp_s("0.0.0.0", strlen("0.0.0.0"),val, &ind);
+                    ERR_CHK(rc);
+                    if ((ind != 0) && (rc == EOK)){
+                       setGWP_ipv4_event();
+                       sIPv4_acquired = 1; /* Setting it here, to send IPv4 event only once. Ignore any further RENEW messages */
+                    }
                 }
             }
-            else if (strcmp(name, "ipv6_dhcp6_addr") == 0)
+            else if (ret_value == IPV6_DHCP6_ADDR)
             {
                 /* Set the "ipv6-status" to "up" when there is an IPv6 address assigned to gateway WAN interface */
 				sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv6-status", "up", 0);
@@ -1984,6 +2255,7 @@ static int GWP_act_DocsisLinkUp_callback()
      char wanPhyName[20];
      char out_value[20];
      int outbufsz = sizeof(out_value);
+     errno_t rc = -1;
 
     char* buff = NULL;
     buff = malloc(sizeof(char)*50);
@@ -1994,7 +2266,13 @@ static int GWP_act_DocsisLinkUp_callback()
 
     if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
     {
-        strcpy(wanPhyName, out_value);
+	rc = strcpy_s(wanPhyName,sizeof(wanPhyName),out_value);
+    if(rc != EOK)
+	{
+            ERR_CHK(rc);
+	    return -1;
+	}
+
         printf("wanPhyName = %s\n", wanPhyName);
     }
     else
@@ -2049,23 +2327,24 @@ static void *GWP_linkstate_threadfunc(void *data)
     char wanPhyName[20] = {0};
     char out_value[20] = {0};
     int outbufsz = sizeof(out_value);
+    errno_t rc = -1;
+    int ind = -1;
 
-    char* buff = NULL;
-    buff = malloc(sizeof(char)*50);
-    if(buff == NULL)
-    {
-        return (void *) -1;
-    }
+    char buff[50] = { 0 };
+
     char previousLinkStatus[10] = "down";
     if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
     {
-        strcpy(wanPhyName, out_value);
+		rc = strcpy_s(wanPhyName,sizeof(wanPhyName),out_value);
+        if(rc != EOK)
+        {
+            ERR_CHK(rc);
+	    return;
+        }
         printf("wanPhyName = %s\n", wanPhyName);
     }
     else
     {
-        if(buff != NULL)
-            free(buff);
         return (void *) -1;
     }
     sprintf(command, "cat /sys/class/net/%s/operstate", wanPhyName);
@@ -2073,8 +2352,8 @@ static void *GWP_linkstate_threadfunc(void *data)
     while(1)
     {
         FILE *fp;
-        memset(buff,0,sizeof(buff));
-
+        rc =  memset_s(buff,sizeof(buff), 0, sizeof(buff));
+        ERR_CHK(rc);
         /* Open the command for reading. */
         fp = popen(command, "r");
         if (fp == NULL)
@@ -2094,36 +2373,51 @@ static void *GWP_linkstate_threadfunc(void *data)
 
         /* close */
         pclose(fp);
-        if(!strcmp(buff, (const char *)previousLinkStatus))
+        rc = strcmp_s(buff, strlen(buff),(const char *)previousLinkStatus, &ind);
+        ERR_CHK(rc);
+        if ((!ind) && (rc == EOK))
         {
             /*printf("Link status not changed\n");*/
         }
         else
         {
-            if(!strcmp(buff, "up"))
+            rc = strcmp_s("up", strlen("up"),buff, &ind);
+            ERR_CHK(rc);
+            if ((!ind) && (rc == EOK))
             {
                 /*printf("Ethernet status :%s\n", buff);*/
                 GWP_act_DocsisLinkUp_callback();
             }
-            else if(!strcmp(buff, "down"))
+            else
             {
+                rc = strcmp_s("down", strlen("down"),buff, &ind);
+                ERR_CHK(rc);
+                if ((!ind) && (rc == EOK))
+                {
                 /*printf("Ethernet status :%s\n", buff);*/
                 GWP_act_DocsisLinkDown_callback_1();
                 GWP_act_DocsisLinkDown_callback_2();
+                }
+                else
+                {
+                   sleep(5);
+                   continue;
+                }
             }
-            else
+            
+            rc =  memset_s(previousLinkStatus,sizeof(previousLinkStatus), 0, sizeof(previousLinkStatus));
+            ERR_CHK(rc);
+	    rc = strcpy_s((char *)previousLinkStatus,sizeof(previousLinkStatus),buff);
+            if(rc != EOK)
             {
-                sleep(5);
-                continue;
+               ERR_CHK(rc);
+	       return;
             }
-            memset(previousLinkStatus,0,sizeof(previousLinkStatus));
-            strcpy((char *)previousLinkStatus, buff);
+
             /*printf("Previous Ethernet status :%s\n", (char *)previousLinkStatus);*/
         }
         sleep(5);
     }
-    if(buff != NULL)
-        free(buff);
 
     return 0;
 }
@@ -2135,6 +2429,7 @@ void GWP_Util_get_shell_output( char * cmd, char *out, int len )
     FILE  *fp = NULL;
     char   buf[ 16 ] = { 0 };
     char  *p = NULL;
+    errno_t rc = -1;
 
     fp = popen( cmd, "r" );
 
@@ -2146,7 +2441,13 @@ void GWP_Util_get_shell_output( char * cmd, char *out, int len )
         if ( ( p = strchr( buf, '\n' ) ) ) 
 		*p = 0;
 
-        strncpy( out, buf, len - 1 );
+        rc = strcpy_s(out, len, buf);
+        if(rc != EOK)
+        {
+           ERR_CHK(rc);
+	   pclose( fp );
+           return;
+        }         
 
         pclose( fp );        
     }
@@ -2733,11 +3034,16 @@ static int GWP_act_ProvEntry_callback()
     char wanPhyName[20];
     char out_value[20];
     int outbufsz = sizeof(out_value);
-
+    errno_t rc = -1;
     char previousLinkStatus[10] = "down";
     if (!syscfg_get(NULL, "wan_physical_ifname", out_value, outbufsz))
     {
-       strcpy(wanPhyName, out_value);
+       rc = strcpy_s(wanPhyName,sizeof(wanPhyName),out_value);
+       if(rc != EOK)
+       {
+          ERR_CHK(rc);
+          return -1;
+       }
        printf("wanPhyName = %s\n", wanPhyName);
     }
     else
@@ -2746,12 +3052,14 @@ static int GWP_act_ProvEntry_callback()
     }
 
     system("ifconfig eth0 down");
-    memset(command,0,sizeof(command));
+    rc =  memset_s(command,sizeof(command), 0, sizeof(command));
+    ERR_CHK(rc);
     sprintf(command, "ip link set eth0 name %s", wanPhyName);
     printf("****************value of command = %s**********************\n", command);
     system(command);
 
-    memset(command,0,sizeof(command));
+    rc =  memset_s(command,sizeof(command), 0, sizeof(command));
+    ERR_CHK(rc);
     sprintf(command, "ifconfig %s up", wanPhyName);
     printf("************************value of command = %s***********************\n", command);
     system(command);
