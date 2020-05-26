@@ -1,6 +1,6 @@
 #ifdef AUTOWAN_ENABLE
 #include <stdio.h>
-
+#include <string.h>
 #include<unistd.h> 
 #include<stdint.h>
 #include<errno.h> 
@@ -34,6 +34,14 @@ typedef struct mac_addr
     uint8_t hw[ MAC_ADDR_LEN ];
 } macaddr_t;
 
+#if defined(INTEL_PUMA7)
+#define ESAFE_CFG_FILE          "/var/tmp/eSafeCfgFile.downloaded"
+
+#define ERT_MODE_IPV4           1
+#define ERT_MODE_IPV6           2
+#define ERT_MODE_DUAL           3
+#endif
+
 int g_CurrentWanMode 		= 0;
 int g_LastKnowWanMode 		= 0;
 int g_SelectedWanMode 		= 0;
@@ -50,19 +58,34 @@ void WanMngrThread();
 void SelectedWanMode(int mode);
 void SetLastKnownWanMode(int mode);
 void HandleAutoWanMode(void);
+void ManageWanModes(int mode);
 int TryAltWan(int *mode);
 int CheckWanStatus();
 int CheckWanConnection(int mode);
 void RevertTriedConfig(int mode);
 void AutoWan_BkupAndReboot();
 int CheckEthWanLinkStatus();
+#if defined(INTEL_PUMA7)
+int CheckRebootNeeded();
+#endif
 int CheckEthWanLinkStatus()
 {
-    CCSP_HAL_ETHSW_PORT         port        = ETHWAN_INF_NUM;
+    CCSP_HAL_ETHSW_PORT         port;
     INT                         status;
     CCSP_HAL_ETHSW_LINK_RATE    LinkRate;
     CCSP_HAL_ETHSW_DUPLEX_MODE  DuplexMode;
     CCSP_HAL_ETHSW_LINK_STATUS  LinkStatus;
+
+#if defined(INTEL_PUMA7)
+    status = EthWan_getEthWanPort((unsigned int *) &port);
+    if (status != RETURN_OK)
+    {
+        return 1;
+    }
+    port += 1;
+#else
+    port = ETHWAN_INF_NUM;
+#endif
 
     status = CcspHalEthSwGetPortStatus(port, &LinkRate, &DuplexMode, &LinkStatus);
 
@@ -245,6 +268,9 @@ void WanMngrThread()
 		AUTO_WAN_LOG("Booting-Up in SelectedWanMode - %s\n",WanModeStr(GetSelectedWanMode()));
 		SetLastKnownWanMode(WAN_MODE_ETH);
 		SetCurrentWanMode(WAN_MODE_ETH);
+            #if defined(INTEL_PUMA7)
+                system("cmctl down");
+            #endif
 		#ifdef _SIMULATE_PC_
 		system("killall udhcpc");
 		system("udhcpc -i eth1 &");
@@ -314,7 +340,7 @@ void HandleAutoWanMode(void)
     } 
 }
 
-int ManageWanModes(int mode)
+void ManageWanModes(int mode)
 {
     int try_mode = mode;
     int ret = 0;
@@ -328,6 +354,13 @@ int ManageWanModes(int mode)
 	    if(try_mode == mode)
 	    {
 		AUTO_WAN_LOG("%s - WanMode %s is Locked, Set Current operational mode, reboot is not required\n",__FUNCTION__,WanModeStr(mode));
+#if defined(INTEL_PUMA7)
+                if(try_mode == WAN_MODE_ETH)
+                {
+                    AUTO_WAN_LOG("%s - Shutting down DOCSIS\n", __FUNCTION__);
+                    system("cmctl down");
+                }
+#endif
             }
 	    else
 	    {
@@ -340,9 +373,21 @@ int ManageWanModes(int mode)
     	{
 	    SetLastKnownWanMode(mode);
 	    SetCurrentWanMode(mode);
+#if defined(INTEL_PUMA7)
+            AUTO_WAN_LOG("%s - WanMode %s is Locked, Set Current operational mode\n" , __FUNCTION__, WanModeStr(mode));
+            if (CheckRebootNeeded())
+            {
+                AUTO_WAN_LOG("%s - Device is going to reboot...\n", __FUNCTION__);
+                AutoWan_BkupAndReboot();
+            }
+            else
+            {
+                AUTO_WAN_LOG("%s - Reboot is not required\n", __FUNCTION__);
+            }
+#else
 	    AUTO_WAN_LOG("%s - WanMode %s is Locked, Set Current operational mode, reboot is not required\n",__FUNCTION__,WanModeStr(mode));
             RevertTriedConfig(mode);
-	   
+#endif
             break;
     	}
     	else
@@ -382,6 +427,7 @@ int CheckWanConnection(int mode)
 	}
     return WanLocked;
 }
+
 #if 1
 // For Gw_prov_utopia : Docsis running mode
 extern int sysevent_fd_gs;
@@ -395,11 +441,16 @@ int CheckWanStatus(int mode)
    char *found = NULL;
    char pRfSignalStatus = 0;
    int ret = 0;
-   memset(buff,0,sizeof(buff));
-   memset(command,0,sizeof(command));
+#if defined(INTEL_PUMA7)
+    char wanPhyName[20] = {0};
+    char out_value[20] = {0};
+
+    if (mode == WAN_MODE_DOCSIS){
+#else
 	sysevent_get(sysevent_fd_gs, sysevent_token_gs, "current_wan_state", buff, sizeof(buff));
 
 	if (!strcmp(buff, "up")) {
+#endif
         ret = docsis_IsEnergyDetected(&pRfSignalStatus);
         if( ret == RETURN_ERR )
         {
@@ -433,7 +484,6 @@ int CheckWanStatus(int mode)
 
                		}
                  	 /* close */
-               	 	AUTO_WAN_LOG("AUTOWAN CM Status :%s\n", buff);
        			 pclose(fp);
 			found = strstr(buff,"OPERATIONAL");
 			if(found)
@@ -448,15 +498,29 @@ int CheckWanStatus(int mode)
 				return 1;
 			}
                }
-		   memset(command,0,sizeof(command));
 		return 2;
           }
 	}
 
 	if(mode == WAN_MODE_ETH)
 	{
+#if defined(INTEL_PUMA7)
+        /* Get wan interface name */
+        if (!syscfg_get(NULL, "wan_physical_ifname", out_value, sizeof(out_value)))
+        {
+            strncpy(wanPhyName, out_value, sizeof(wanPhyName));
+        }
+        else
+        {
+            strncpy(wanPhyName, WAN_PHY_NAME, sizeof(wanPhyName));
+        }
+#endif
 		/* Validate IPv4 Connection on ETHWAN interface */
+#if defined(INTEL_PUMA7)
+        sprintf(command, "ifconfig %s |grep -i 'inet ' |awk '{print $2}' |cut -f2 -d:", wanPhyName);
+#else
 		sprintf(command, "ifconfig %s |grep -i 'inet ' |awk '{print $2}' |cut -f2 -d:", ETHWAN_INF_NAME);
+#endif
                memset(buff,0,sizeof(buff));
 
                /* Open the command for reading. */
@@ -483,7 +547,11 @@ int CheckWanStatus(int mode)
                }
 		/* Validate IPv6 Connection on ETHWAN interface */
 		memset(command,0,sizeof(command));
+#if defined(INTEL_PUMA7)
+        sprintf(command, "ifconfig %s |grep -i 'inet6 ' |grep -i 'Global' |awk '{print $3}'", wanPhyName);
+#else
 		sprintf(command, "ifconfig %s |grep -i 'inet6 ' |grep -i 'Global' |awk '{print $3}'", ETHWAN_INF_NAME);
+#endif
 		memset(buff,0,sizeof(buff));
                /* Open the command for reading. */
                fp = popen(command, "r");
@@ -513,12 +581,47 @@ int CheckWanStatus(int mode)
 return 1;
 }
 #endif
+#if defined(INTEL_PUMA7)
+int CheckRebootNeeded()
+{
+    char buff[256] = {0};
+    sysevent_get(sysevent_fd_gs, sysevent_token_gs, "wan-status", buff, sizeof(buff));
+    AUTO_WAN_LOG("%s - wan-status is %s\n",__FUNCTION__,buff);
+    if ((access(ESAFE_CFG_FILE, F_OK) != -1) &&
+        ((!strncmp(buff, "started", sizeof(buff))) ||
+         (!strncmp(buff, "starting", sizeof(buff))))) {
+        return 0;
+    }
+    return 1;
+}
+#endif
+
 int TryAltWan(int *mode)
 {
-int ret = 0;
 char pRfSignalStatus = 0;
-char command[64];
-memset(command,0,sizeof(command));
+    char command[128] = {0};
+#if defined(INTEL_PUMA7)
+    char ethwan_ifname[20] = {0};
+    char wanPhyName[20] = {0};
+    char out_value[20] = {0};
+    char pid_file[50] = {0};
+    int eRouterMode = ERT_MODE_IPV4;
+
+    if (0 != GWP_GetEthWanInterfaceName(ethwan_ifname))
+    {
+        /* Fallback case needs to set it default */
+        sprintf(ethwan_ifname , "%s", ETHWAN_INF_NAME);
+    }
+
+    if (!syscfg_get(NULL, "wan_physical_ifname", out_value, sizeof(out_value)))
+    {
+        strncpy(wanPhyName, out_value, sizeof(wanPhyName));
+    }
+    else
+    {
+        strncpy(wanPhyName, WAN_PHY_NAME, sizeof(wanPhyName));
+    }
+#endif
     if(*mode == WAN_MODE_DOCSIS)
     { 
         if(CheckEthWanLinkStatus() != 0)
@@ -530,8 +633,94 @@ memset(command,0,sizeof(command));
         }
         *mode = WAN_MODE_ETH;
 
+        macaddr_t macAddr;
+#if defined(INTEL_PUMA7)
+        getNetworkDeviceMacAddress(&macAddr);
+#else
+        getWanMacAddress(&macAddr);
+#endif
+        int i = 0;
+        printf("eRouter macAddr: ");
+        for (i = 0 ; i < 6 ; i++)
+        {
+            printf("%2x ",macAddr.hw[i]);
+        }
+        printf("\n");
+
+        char wan_mac[18];// = {0};
+        sprintf(wan_mac, "%02x:%02x:%02x:%02x:%02x:%02x", macAddr.hw[0], macAddr.hw[1], macAddr.hw[2],
+                                                          macAddr.hw[3], macAddr.hw[4], macAddr.hw[5]);
+
 	CosaDmlEthWanSetEnable(TRUE);
+#if defined(INTEL_PUMA7)
+        memset(command, 0, sizeof(command));
+        sprintf(command, "brctl delif brlan0 %s", ethwan_ifname);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s down", ethwan_ifname);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s down; ip link set %s name dummy-rf", wanPhyName, wanPhyName);
+        system(command);
+
         memset(command,0,sizeof(command));
+        sprintf(command, "brctl addbr %s; brctl addif %s %s", wanPhyName, wanPhyName, ethwan_ifname);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "sysctl -w net.ipv6.conf.%s.autoconf=0", ethwan_ifname);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s down", wanPhyName);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s hw ether %s", wanPhyName,wan_mac);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s hw ether %s", ethwan_ifname, wan_mac);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s up", wanPhyName);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s up", ethwan_ifname);
+        system(command);
+
+        memset(out_value, 0, sizeof(out_value));
+        if (!syscfg_get(NULL, "last_erouter_mode", out_value, sizeof(out_value)))
+        {
+            eRouterMode = atoi(out_value);
+        }
+
+        memset(command, 0, sizeof(command));
+        if (eRouterMode == ERT_MODE_IPV6)
+        {
+            strncpy(pid_file, "/var/run/erouter_dhcp6c.pid", sizeof(pid_file));
+            sprintf(command, "systemctl set-environment WAN_INTF=%s PID_FILE=%s", wanPhyName, pid_file);
+            system(command);
+            system("systemctl restart dhcpv6c");
+            system("systemctl unset-environment WAN_INTF PID_FILE");
+        }
+        else if(eRouterMode == ERT_MODE_IPV4 || eRouterMode == ERT_MODE_DUAL)
+        {
+            strncpy(pid_file, "/var/run/eRT_ti_udhcpc.pid", sizeof(pid_file));
+            sprintf(command, "systemctl set-environment WAN_INTERFACE=%s PID_FILE=%s DHCPRQ_BACKOFF_TIME=4", wanPhyName, pid_file);
+            system(command);
+            system("systemctl restart dhcpv4c");
+            system("systemctl unset-environment WAN_INTERFACE PID_FILE DHCPRQ_BACKOFF_TIME");
+        }
+#else
         sprintf(command,"brctl delif brlan0 %s",ETHWAN_INF_NAME);
         system(command);
 	//system("brctl delif brlan0 eth3");
@@ -539,18 +728,6 @@ memset(command,0,sizeof(command));
         sprintf(command,"brctl addif erouter0 %s",DOCSIS_INF_NAME);
         system(command);
 	//system("brctl addif erouter0 cm0");
-    {
-    macaddr_t macAddr;
-    int i =0;
-        getWanMacAddress(&macAddr);
-                printf("eRouter macAddr ");
-                for (i=0;i<6;i++)
-                {
-                   printf("%2x ",macAddr.hw[i]);
-                }
-                printf(" \n");
-    char wan_mac[18];// = {0};
-    sprintf(wan_mac, "%02x:%02x:%02x:%02x:%02x:%02x",macAddr.hw[0],macAddr.hw[1],macAddr.hw[2],macAddr.hw[3],macAddr.hw[4],macAddr.hw[5]);
     memset(command,0,sizeof(command));
     sprintf(command,"ifconfig %s down",ETHWAN_INF_NAME);
     system(command);
@@ -567,7 +744,6 @@ memset(command,0,sizeof(command));
     system(command);
     //system("ifconfig eth3 up");
 
-    }
     memset(command,0,sizeof(command));
     sprintf(command,"udhcpc -i %s &",ETHWAN_INF_NAME);
     system(command);	
@@ -581,6 +757,7 @@ memset(command,0,sizeof(command));
     sprintf(command,"udhcpc -i %s &",ETHWAN_INF_NAME);
     system(command);  
     //system("udhcpc -i eth3 &");
+#endif
     }
     else
     {
@@ -595,19 +772,64 @@ memset(command,0,sizeof(command));
 	 	return ret;
 	 }*/
         *mode = WAN_MODE_DOCSIS;
+#if defined (INTEL_PUMA7)
+        system("systemctl stop dhcpv4c");
+        system("systemctl stop dhcpv6c");
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ip addr flush dev %s", wanPhyName);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ip -6 addr flush dev %s", wanPhyName);
+        system(command);
+#else
 	system("killall udhcpc");
+#endif
 	CosaDmlEthWanSetEnable(FALSE);
+#if defined(INTEL_PUMA7)
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s down", wanPhyName);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s down", ethwan_ifname);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "brctl delif %s %s", wanPhyName, ethwan_ifname);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "brctl delbr %s", wanPhyName);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "brctl addif %s %s", "brlan0", ethwan_ifname);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ip link set %s name %s", "dummy-rf", wanPhyName);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s up", wanPhyName);
+        system(command);
+
+        memset(command, 0, sizeof(command));
+        sprintf(command, "ifconfig %s up", ethwan_ifname);
+        system(command);
+#endif
     }
     AUTO_WAN_LOG("%s - Trying Alternet WanMode - %s\n",__FUNCTION__,WanModeStr(*mode));
+    return 0;
 }
 
 void RevertTriedConfig(int mode)
 {
-char command[64];
-memset(command,0,sizeof(command));
+    char command[64] = {0};
     if(mode == WAN_MODE_DOCSIS)
     {
-        memset(command,0,sizeof(command));
         sprintf(command,"ifconfig %s down",ETHWAN_INF_NAME);
         system(command);
 	//system("ifconfig eth3 down");
@@ -664,8 +886,9 @@ CosaDmlEthWanSetEnable
         BOOL                       bEnable
     )
 {
-#if (defined (_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_))
+#if ((defined (_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)) || defined(INTEL_PUMA7))
         BOOL bGetStatus = FALSE;
+#if !defined(INTEL_PUMA7)
 	{
 	   if(bEnable == FALSE)
 	   {
@@ -680,6 +903,7 @@ CosaDmlEthWanSetEnable
 		
 	   } 
 	}
+#endif
 
 	CcspHalExtSw_setEthWanPort ( ETHWAN_DEF_INTF_NUM );
 

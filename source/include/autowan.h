@@ -8,6 +8,9 @@
 #define ETHWAN_INF_NUM 1
 #endif
 #define DOCSIS_INF_NAME "cm0"
+#ifdef INTEL_PUMA7
+#define WAN_PHY_NAME "erouter0"
+#endif
  #ifndef RETURN_OK
 #define RETURN_OK   0
 #endif

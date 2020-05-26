@@ -169,6 +169,10 @@ char log_buff[1024];
 #endif
 #endif
 
+#if defined(AUTOWAN_ENABLE) && defined(INTEL_PUMA7)
+#define ETHWAN_FILE     "/nvram/ETHWAN_ENABLE"
+#endif
+
 static Tr69TlvData *tlvObject=NULL;
 static int objFlag = 1;
 
@@ -3105,9 +3109,20 @@ if( uid == 0 )
         pthread_create(&sysevent_tid, NULL, GWP_sysevent_threadfunc, NULL);
     }
 #ifdef AUTOWAN_ENABLE
+#ifdef INTEL_PUMA7
+    if(!IsFileExists(ETHWAN_FILE))
+    {
+        bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+        if(bridge_mode == 0)
+        {
+            AutoWAN_main();
+        }
+    }
+#else
 	bridge_mode = GWP_SysCfgGetInt("bridge_mode");
 	if(bridge_mode == 0)
 	AutoWAN_main();
+#endif
 #endif
 #if defined(_PLATFORM_RASPBERRYPI_)
 }
