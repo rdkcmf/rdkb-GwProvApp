@@ -483,7 +483,10 @@ static bool WriteTr69TlvData(Uint8 typeOfTLV)
 	FILE * file= fopen(TR69_TLVDATA_FILE, "rb");
 	if (file != NULL)
 	{
-		fread(tlvObject, sizeof(Tr69TlvData), 1, file);
+                /* Coverity Fix:CID 62659 CHECKED_RETURN  */
+		if( fread(tlvObject, sizeof(Tr69TlvData), 1, file) < 1 )
+	               GWPROV_PRINT(" Error in fread  %s \n", __FUNCTION__);
+                    
 		fclose(file);
 	}
 	else
@@ -852,7 +855,7 @@ static STATUS GW_UpdateTr069Cfg(void)
 
     /*Convert TLV 202.2 data into TLV11 data*/
     ret = GW_SetTr069PaDataInTLV11Buffer(Snmp_Tlv11Buf, &Snmp_Tlv11BufLen);
-    if (ret == STATUS_NOK)
+        if (ret == STATUS_NOK)
 	{
 		return ret;
 	}
@@ -872,6 +875,8 @@ static STATUS GW_UpdateTr069Cfg(void)
     }
 
     return ret;
+  
+  
 
 #if 0
         SnmpaIfResponse_t *tlv11Resp = (SnmpaIfResponse_t*)malloc(sizeof(SnmpaIfResponse_t)+sizeof(int));
@@ -1026,6 +1031,8 @@ static Bool GWP_IsGwEnabled(void)
 }
 #endif
 
+/* Coverity Fix CID:56406 MISSING_RETURN */
+void 
 validate_mode(int* bridge_mode, int* eRouterMode)
 {
 	if((*eRouterMode < DOCESAFE_ENABLE_DISABLE_extIf)  || (*eRouterMode > DOCESAFE_ENABLE_NUM_ENABLE_TYPES_extIf)
@@ -1038,10 +1045,12 @@ validate_mode(int* bridge_mode, int* eRouterMode)
 
 		GWP_SysCfgSetInt("last_erouter_mode", *eRouterMode);
 		GWP_SysCfgSetInt("bridge_mode", *bridge_mode);
-		syscfg_commit();
+		if( syscfg_commit() != 0)
+                      GWPROV_PRINT(" %s : syscfg_commit not success \n", __FUNCTION__);
+                  
 	}
 	GWPROV_PRINT(" %s : bridge_mode = %d , eRouterMode = %d \n", __FUNCTION__, *bridge_mode, *eRouterMode);
-}
+ }
 
 #if !defined(_PLATFORM_RASPBERRYPI_)
 void docsis_gotEnable_callback(Uint8 state)
@@ -1295,12 +1304,15 @@ static void GWP_UpdateERouterMode(void)
             GWP_DisableERouter();
             
             GWP_SysCfgSetInt("last_erouter_mode", eRouterMode);  // save the new mode only
-            syscfg_commit();
+              if (syscfg_commit() != 0) 
+                    printf("syscfg_commit  for new mode failed\n");
+              
         }
         else
         {
             GWP_SysCfgSetInt("last_erouter_mode", eRouterMode);  // save the new mode only
-            syscfg_commit();
+             if (syscfg_commit() != 0) 
+                    printf("syscfg_commit failed for DOCESAFE_ENABLE_DISABLE_extIf \n");
             // TLV202 allows eRouter, but we still need to check user's preference
             //bridge_mode = GWP_SysCfgGetInt("bridge_mode");
             //if (bridge_mode == 1 || bridge_mode == 2)
@@ -3350,6 +3362,8 @@ int main(int argc, char *argv[])
     	/* Command line - ignored */
     	SME_CreateEventHandler(obj);
     	GWPROV_PRINT(" Creating Event Handler over\n");
+           /*Coverity Fix CID:80015 RESOURCE_LEAK */
+           free(obj);
     } //if(obj != NULL)
 
 #else
@@ -3362,7 +3376,10 @@ if( uid == 0 )
 }
     (void) pthread_join(linkstate_tid, NULL);
 #endif
+    
+
     return 0;
+
 }
 
 
