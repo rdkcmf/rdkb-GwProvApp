@@ -3313,6 +3313,8 @@ int main(int argc, char *argv[])
 #endif
     printf("Started gw_prov_utopia\n");
 
+    t2_init("ccsp-gwprovapp");
+
 #if !defined(_PLATFORM_RASPBERRYPI_)
 
     #ifdef FEATURE_SUPPORT_RDKLOG
