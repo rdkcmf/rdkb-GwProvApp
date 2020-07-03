@@ -281,7 +281,7 @@ static TlvParseCallbackStatusExtIf_e GW_setTopologyMode(Uint8 type, Uint16 lengt
 /* New implementation !*/
 static void LAN_start();
 
-void *GWP_UpdateTr069CfgThread( void *data );
+static void *GWP_UpdateTr069CfgThread( void *data );
 
 void GWP_Util_get_shell_output( char * cmd, char *out, int len );
 
@@ -2520,7 +2520,7 @@ void GWP_Util_get_shell_output( char * cmd, char *out, int len )
 
 /* GWP_UpdateTr069CfgThread() */
 #if !defined(_PLATFORM_RASPBERRYPI_)
-void *GWP_UpdateTr069CfgThread( void *data )
+static void *GWP_UpdateTr069CfgThread( void *data )
 {
 	int 	IsNeedtoProceedFurther    = TRUE;
 
