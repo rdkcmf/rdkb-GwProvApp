@@ -1238,8 +1238,10 @@ static void *GWP_sysevent_threadfunc(void *data)
                   if(!lan_wan_ready) {
                       v_secure_system("ip6tables -t mangle -I PREROUTING 1 -i %s -d %s -p ipv6-icmp -m icmp6 --icmpv6-type 135 -m limit --limit 20/sec -j ACCEPT", ER_NETDEVNAME, val);
                   }
-                  else
+                  else {
                       sysevent_set(sysevent_fd_gs, sysevent_token_gs, "firewall-restart", "",0);
+                  }
+
 #ifdef DSLITE_FEATURE_SUPPORT
                   /* Modification for DSLite Service */
                   if(!strcmp(val, ""))//If erouter0 IPv6 address is null
