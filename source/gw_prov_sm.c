@@ -481,7 +481,6 @@ int IsFileExists(const char *fname)
  #undef TRUE
 #endif
 #define TRUE 1
-static char url[600] = {0};
 
 static bool WriteTr69TlvData(Uint8 typeOfTLV)
 {
@@ -544,12 +543,6 @@ static bool WriteTr69TlvData(Uint8 typeOfTLV)
                 rc =  memset_s(tlvObject->URL,sizeof(tlvObject->URL), 0, sizeof(tlvObject->URL));
                 ERR_CHK(rc);
                 rc = strcpy_s(tlvObject->URL,sizeof(tlvObject->URL),gwTlvsLocalDB.tlv2.URL);
-                if(rc != EOK)
-                {
-                    ERR_CHK(rc);
-                    return FALSE;
-                }
-                rc = strcpy_s(url,sizeof(url),tlvObject->URL);
                 if(rc != EOK)
                 {
                     ERR_CHK(rc);
