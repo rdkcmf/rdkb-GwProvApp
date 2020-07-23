@@ -1169,7 +1169,7 @@ static void GWP_EnableERouter(void)
     //system("sysevent set bridge_mode 0");
     //system("sysevent set forwarding-restart");
 	GWP_EnterRouterMode();
-    v_secure_system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string router");
+    v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string router");
 
     printf("******************************\n");
     printf("* Enabled (after cfg file)  *\n");
@@ -1197,14 +1197,14 @@ static void GWP_EnterRouterMode(void)
 	GWPROV_PRINT(" MocaPreviousStatus = %d \n", prev);
 	if(prev == 1)
 	{
-		v_secure_system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool true");
+		v_secure_system("dmcli eRT setv Device.MoCA.Interface.1.Enable bool true");
 	}
 	else
 	{
-		v_secure_system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
+		v_secure_system("dmcli eRT setv Device.MoCA.Interface.1.Enable bool false");
 	}
 
-    v_secure_system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
+    v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
     
     v_secure_system("sysevent set forwarding-restart");
 }
@@ -1234,7 +1234,7 @@ static void GWP_DisableERouter(void)
     
     
     GWP_EnterBridgeMode();
-    v_secure_system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string bridge-static");
+    v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string bridge-static");
 
     printf("******************************\n");
     printf("* Disabled (after cfg file)  *\n");
@@ -1263,9 +1263,9 @@ static void GWP_EnterBridgeMode(void)
 		    printf("syscfg_commit failed\n");
 	    }
 	}
-    v_secure_system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
+    v_secure_system("dmcli eRT setv Device.MoCA.Interface.1.Enable bool false");
     v_secure_system("sysevent set bridge_mode %d", active_mode);
-    v_secure_system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
+    v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
     
     v_secure_system("sysevent set forwarding-restart");
 }
@@ -1299,9 +1299,9 @@ char MocaStatus[16] = {0};
 	    }	    
 	}	
 	
-    v_secure_system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
+    v_secure_system("dmcli eRT setv Device.MoCA.Interface.1.Enable bool false");
     v_secure_system("sysevent set bridge_mode %d", BRMODE_PRIMARY_BRIDGE);
-    v_secure_system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
+    v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
     v_secure_system("sysevent set forwarding-restart");
 }
 #endif
@@ -1336,7 +1336,7 @@ static void GWP_UpdateERouterMode(void)
             /*Enter bridge mode, DSLite won't be triggered to start, so we need to clear the previous DSLite service buffered status*/
             v_secure_system("service_dslite clear &");
 #endif
-            v_secure_system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string bridge-static");
+            v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string bridge-static");
             
             GWP_DisableERouter();
             
@@ -1371,7 +1371,7 @@ static void GWP_UpdateERouterMode(void)
                 webui_started = 0;
                 active_mode = BRMODE_ROUTER; //This is set so that the callback from LanMode does not trigger another transition.
                                                     //The code here will here will handle it.
-                v_secure_system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string router");
+                v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string router");
                 GWP_EnableERouter();
             }
             else  // remain enabled, switch mode
