@@ -2028,7 +2028,6 @@ static void *GWP_sysevent_threadfunc(void *data)
             }
             else if (ret_value == LAN_STATUS || ret_value == BRIDGE_STATUS ) 
             {
-
 #if defined (_PROPOSED_BUG_FIX_)
                 GWPROV_PRINT("***LAN STATUS/BRIDGE STATUS RECIEVED****\n");
                 GWPROV_PRINT("THE EVENT =%s VALUE=%s\n",name,val);
@@ -2049,6 +2048,22 @@ static void *GWP_sysevent_threadfunc(void *data)
                         // For other devices CcspWebUI.service launches the GUI processes
                         startWebUIProcess();
 #endif
+			if (ret_value == BRIDGE_STATUS)
+			{
+			    char output[ 32 ] = { 0 };
+			    memset(output,0,sizeof(output));
+			    GWP_Util_get_shell_output( "pidof lighttpd", output, sizeof( output ) );
+			    /* RDKB-29271: Lighttpd not running when switch to bridge mode.
+			     * 	Rootcause : lan0 interface creation takes time so lighttpd exits if it spawn before lan0 is up.
+			     *  Soln : Trigger webgui.sh whenever bridge-status is started.
+			     *         Trigger only when lighttpd is not running.
+			     */
+			    if( ( '\0' == output[ 0 ] ) || ( 0 == strlen( output ) ) )
+			    {
+				GWPROV_PRINT(" bridge-status = %s start webgui.sh \n", val );
+                                system("/bin/sh /etc/webgui.sh &");
+			    }
+			}
                         webui_started = 1 ;
 #ifdef CONFIG_CISCO_HOME_SECURITY
                         //Piggy back off the webui start event to signal XHS startup
