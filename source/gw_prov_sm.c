@@ -2215,7 +2215,7 @@ static int GWP_act_DocsisLinkDown_callback_1()
 {
     phylink_wan_state = 0;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
-    system("sysevent set phylink_wan_state down");
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "phylink_wan_state", "down", 0);
    
     printf("\n**************************\n");
     printf("\nsysevent set phylink_wan_state down\n");
@@ -2258,7 +2258,7 @@ static int GWP_act_DocsisLinkUp_callback()
 {
     phylink_wan_state = 1;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
-    system("sysevent set phylink_wan_state up");
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "phylink_wan_state", "up", 0);
     printf("\n**************************\n");
     printf("\nsysevent set phylink_wan_state up\n");
     printf("\n**************************\n\n");
@@ -2317,9 +2317,10 @@ static int GWP_act_DocsisLinkUp_callback()
     {
         printf("Starting wan service\n");
         GWPROV_PRINT(" Starting wan service\n");
-        system("sysevent set wan-start ; sysevent set sshd-restart");
+	sysevent_set(sysevent_fd_gs, sysevent_token_gs, "wan-start", "", 0);
+	sysevent_set(sysevent_fd_gs, sysevent_token_gs, "sshd-restart", "", 0);
     #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
-        system("sysevent set dhcpv6_client-start");
+	sysevent_set(sysevent_fd_gs, sysevent_token_gs, "dhcpv6_client-start", "", 0);
     #endif
     }
 
