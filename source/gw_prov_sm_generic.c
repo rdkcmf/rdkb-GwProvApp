@@ -815,9 +815,9 @@ static void *GWP_sysevent_threadfunc(void *data)
     for (;;)
     {
 #ifdef MULTILAN_FEATURE
-        char name[40], val[42], buf[BUF_SIZE];
+        char name[64], val[64], buf[BUF_SIZE];
 #else
-        char name[40], val[42];
+        char name[64], val[64];
 #ifdef CONFIG_CISCO_HOME_SECURITY
         char  buf[10];
 #endif
