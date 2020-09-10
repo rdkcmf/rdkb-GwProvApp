@@ -71,7 +71,7 @@
 #include <syscfg/syscfg.h>
 #include <pthread.h>
 #include "gw_prov_abstraction.h"
-#include "Tr69_Tlv.h"
+#include <Tr69_Tlv.h>
 #include <autoconf.h>
 #ifdef AUTOWAN_ENABLE
 #include "autowan.h"
