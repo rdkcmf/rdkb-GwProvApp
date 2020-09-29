@@ -506,35 +506,37 @@ static bool WriteTr69TlvData(Uint8 typeOfTLV)
 		GWPROV_PRINT(" Fresh Bootup \n");
 		switch (typeOfTLV)
 		{
-			case GW_SUBTLV_TR069_ENABLE_CWMP_EXTIF:
-				tlvObject->EnableCWMP = gwTlvsLocalDB.tlv2.EnableCWMP;
-				break;
-			case GW_SUBTLV_TR069_URL_EXTIF:
-                        rc =  memset_s(tlvObject->URL,sizeof(tlvObject->URL), 0, sizeof(tlvObject->URL));
-                        ERR_CHK(rc);
-				        rc = strcpy_s(tlvObject->URL,sizeof(tlvObject->URL),gwTlvsLocalDB.tlv2.URL);
-                        if(rc != EOK)
-                        { 
-	                        ERR_CHK(rc);
-                            return FALSE;
-                        }
-				        rc = strcpy_s(url,sizeof(url),tlvObject->URL);
-                        if(rc != EOK)
-                        {
-                            ERR_CHK(rc);
-                            return FALSE;
-                        }
-                		break;
-			case GW_SUBTLV_TR069_USERNAME_EXTIF:                			
-        		case GW_SUBTLV_TR069_PASSWORD_EXTIF:
-        		case GW_SUBTLV_TR069_CONNREQ_USERNAME_EXTIF:
-        		case GW_SUBTLV_TR069_CONNREQ_PASSWORD_EXTIF:
-        		case GW_SUBTLV_TR069_ACS_OVERRIDE_EXTIF:
-				break;
-			default:
-				printf("TLV : %d can't be saved to TLV data file\n",typeOfTLV);
-				GWPROV_PRINT(" TLV : %d can't be saved to TLV data file\n",typeOfTLV);
-				break;
+            case GW_SUBTLV_TR069_ENABLE_CWMP_EXTIF:
+                tlvObject->EnableCWMP = gwTlvsLocalDB.tlv2.EnableCWMP;
+                break;
+            case GW_SUBTLV_TR069_URL_EXTIF:
+                rc =  memset_s(tlvObject->URL,sizeof(tlvObject->URL), 0, sizeof(tlvObject->URL));
+                ERR_CHK(rc);
+                rc = strcpy_s(tlvObject->URL,sizeof(tlvObject->URL),gwTlvsLocalDB.tlv2.URL);
+                if(rc != EOK)
+                {
+                    ERR_CHK(rc);
+                    return FALSE;
+                }
+                rc = strcpy_s(url,sizeof(url),tlvObject->URL);
+                if(rc != EOK)
+                {
+                    ERR_CHK(rc);
+                    return FALSE;
+                }
+                break;
+            case GW_SUBTLV_TR069_USERNAME_EXTIF:
+            case GW_SUBTLV_TR069_PASSWORD_EXTIF:
+            case GW_SUBTLV_TR069_CONNREQ_USERNAME_EXTIF:
+            case GW_SUBTLV_TR069_CONNREQ_PASSWORD_EXTIF:
+                break;
+            case GW_SUBTLV_TR069_ACS_OVERRIDE_EXTIF:
+                tlvObject->AcsOverRide = gwTlvsLocalDB.tlv2.ACSOverride;
+                break;
+            default:
+                //(DUPLICATE)GWPROV_PRINTOut("TLV : %d can't be saved to TLV data file\n",typeOfTLV);
+                GWPROV_PRINT(" TLV : %d can't be saved to TLV data file\n",typeOfTLV);
+                break;
 		}
 	
 	}
@@ -545,34 +547,36 @@ static bool WriteTr69TlvData(Uint8 typeOfTLV)
 		tlvObject->FreshBootUp = FALSE;
 		switch (typeOfTLV)
 		{
-			case GW_SUBTLV_TR069_ENABLE_CWMP_EXTIF:
-					tlvObject->EnableCWMP = gwTlvsLocalDB.tlv2.EnableCWMP;
-					break;
-			case GW_SUBTLV_TR069_URL_EXTIF:
-				if(tlvObject->Tr69Enable == FALSE) 
-				{
-					// This is to make sure that we always use boot config supplied URL
-					// during TR69 initialization
-                rc =  memset_s(tlvObject->URL,sizeof(tlvObject->URL), 0, sizeof(tlvObject->URL));
-                ERR_CHK(rc);
-   			    rc = strcpy_s(tlvObject->URL,sizeof(tlvObject->URL),gwTlvsLocalDB.tlv2.URL);
-                if(rc != EOK)
+            case GW_SUBTLV_TR069_ENABLE_CWMP_EXTIF:
+                tlvObject->EnableCWMP = gwTlvsLocalDB.tlv2.EnableCWMP;
+                break;
+            case GW_SUBTLV_TR069_URL_EXTIF:
+                if(tlvObject->Tr69Enable == FALSE)
                 {
+                    // This is to make sure that we always use boot config supplied URL
+                    // during TR69 initialization
+                    rc =  memset_s(tlvObject->URL,sizeof(tlvObject->URL), 0, sizeof(tlvObject->URL));
                     ERR_CHK(rc);
-                    return FALSE;
+                    rc = strcpy_s(tlvObject->URL,sizeof(tlvObject->URL),gwTlvsLocalDB.tlv2.URL);
+                    if(rc != EOK)
+                    {
+                        ERR_CHK(rc);
+                        return FALSE;
+                    }
                 }
-				}
-				break;
-			case GW_SUBTLV_TR069_USERNAME_EXTIF:                			
-       			case GW_SUBTLV_TR069_PASSWORD_EXTIF:
-       			case GW_SUBTLV_TR069_CONNREQ_USERNAME_EXTIF:
-       			case GW_SUBTLV_TR069_CONNREQ_PASSWORD_EXTIF:
-       			case GW_SUBTLV_TR069_ACS_OVERRIDE_EXTIF:
-				break;
-			default:
-				printf("TLV : %d can't be saved to TLV data file\n",typeOfTLV);
-				GWPROV_PRINT(" TLV : %d can't be saved to TLV data file\n",typeOfTLV);
-				break;
+                break;
+            case GW_SUBTLV_TR069_USERNAME_EXTIF:
+            case GW_SUBTLV_TR069_PASSWORD_EXTIF:
+            case GW_SUBTLV_TR069_CONNREQ_USERNAME_EXTIF:
+            case GW_SUBTLV_TR069_CONNREQ_PASSWORD_EXTIF:
+                break;
+            case GW_SUBTLV_TR069_ACS_OVERRIDE_EXTIF:
+                tlvObject->AcsOverRide = gwTlvsLocalDB.tlv2.ACSOverride;
+                break;
+            default:
+                //(DUPLICATE)GWPROV_PRINTOut("TLV : %d can't be saved to TLV data file\n",typeOfTLV);
+                GWPROV_PRINT(" TLV : %d can't be saved to TLV data file\n",typeOfTLV);
+                break;
 		}
 	}
 
