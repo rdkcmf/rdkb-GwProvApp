@@ -287,6 +287,7 @@ static int lan_telnet_started = 0;
 static int ciscoconnect_started = 0;
 static int webui_started = 0;
 static Uint32 factory_mode = 0;
+static int bridgeModeInBootup = 0;
 
 
 static DOCSIS_Esafe_Db_extIf_e eRouterMode = DOCESAFE_ENABLE_DISABLE_extIf;
@@ -2023,7 +2024,7 @@ static void *GWP_sysevent_threadfunc(void *data)
             }*/ 
             else if (ret_value == PRIMARY_LAN_13NET)
             {
-		 GWPROV_PRINT(" primary_lan_l3net received \n");              
+		 GWPROV_PRINT(" primary_lan_l3net received \n");
                 if (pnm_inited)
                  {
 
@@ -2056,23 +2057,15 @@ static void *GWP_sysevent_threadfunc(void *data)
 #elif defined(_COSA_INTEL_XB3_ARM_) || defined(_CBR_PRODUCT_REQ_)
                         // For other devices CcspWebUI.service launches the GUI processes
                         startWebUIProcess();
-#endif
-			if (ret_value == BRIDGE_STATUS)
+#else
+			if ((ret_value == BRIDGE_STATUS) && (!bridgeModeInBootup))
 			{
 			    char output[ 32 ] = { 0 };
 			    memset(output,0,sizeof(output));
-			    GWP_Util_get_shell_output( "pidof lighttpd", output, sizeof( output ) );
-			    /* RDKB-29271: Lighttpd not running when switch to bridge mode.
-			     * 	Rootcause : lan0 interface creation takes time so lighttpd exits if it spawn before lan0 is up.
-			     *  Soln : Trigger webgui.sh whenever bridge-status is started.
-			     *         Trigger only when lighttpd is not running.
-			     */
-			    if( ( '\0' == output[ 0 ] ) || ( 0 == strlen( output ) ) )
-			    {
-				GWPROV_PRINT(" bridge-status = %s start webgui.sh \n", val );
-                                system("/bin/sh /etc/webgui.sh &");
-			    }
+			    GWPROV_PRINT(" bridge-status = %s start webgui.sh \n", val );
+			    system("/bin/sh /etc/webgui.sh &");
 			}
+#endif
                         webui_started = 1 ;
 #ifdef CONFIG_CISCO_HOME_SECURITY
                         //Piggy back off the webui start event to signal XHS startup
@@ -2125,6 +2118,7 @@ static void *GWP_sysevent_threadfunc(void *data)
 					if (!once) {
 						check_lan_wan_ready();
 					}
+		    bridgeModeInBootup = 0; // reset after lan/bridge status is received.
                 }
             } else if (ret_value == DHCPV6_CLIENT_V6ADDR) {
                 Uint8 v6addr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ] = {0};
@@ -3035,6 +3029,10 @@ static int GWP_act_ProvEntry_callback()
     system("/etc/utopia/utopia_init.sh");
 
     syscfg_init();
+    if (0 != GWP_SysCfgGetInt("bridge_mode"))
+    {
+        bridgeModeInBootup = 1;
+    }
 #else
     system("mkdir -p /nvram");
     system("rm -f /nvram/dnsmasq.leases");
