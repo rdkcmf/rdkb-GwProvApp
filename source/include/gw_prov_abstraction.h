@@ -215,16 +215,16 @@ typedef enum TlvParseCallbackStatusExtIf
 * from provisioning abstraction layer when any provisioning
 * event occurs.
 */
-typedef void (*fpDocsisLinkDown_1)();
-typedef void (*fpDocsisLinkDown_2)();
+typedef int (*fpDocsisLinkDown_1)();
+typedef int (*fpDocsisLinkDown_2)();
 typedef int (*fpDocsisLinkUp)();
-typedef void (*fpDocsisCfgfile)(Char*);
-typedef void (*fpDocsisTftpOk)();
-typedef void (*fpBefCfgfileEntry)();
-typedef void (*fpDocsisInited)();
-typedef void (*fpProvEntry)();
+typedef int (*fpDocsisCfgfile)(Char*);
+typedef int (*fpDocsisTftpOk)();
+typedef int (*fpBefCfgfileEntry)();
+typedef int (*fpDocsisInited)();
+typedef int (*fpProvEntry)();
 typedef void (*fpDocsisEnabled)(Uint8);
-typedef void (*fpGW_Tr069PaSubTLVParse)(Uint8 type, Uint16 length, const Uint8* value);
+typedef TlvParseCallbackStatusExtIf_e (*fpGW_Tr069PaSubTLVParse)(Uint8 type, Uint16 length, const Uint8* value);
 #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
 typedef void (*fpGW_SetTopologyMode)(Uint8 type, Uint16 length, const Uint8* value);
 #endif
@@ -697,12 +697,12 @@ int parseTlv(Uint8 *confFileBuff, Uint32 confFileBuffLen);
 * @brief This API is called to send all TR69 SNMP TLV11 configuration to 
 *	 SNMP agent
 *\n Prototype :
-        static STATUS sendTLV11toSnmpAgent
+        STATUS sendTLV11toSnmpAgent
 	(
 		void * Snmp_Tlv11Buf, 
 		int Snmp_Tlv11BufLen
 	)
-*\n Caller : static STATUS GW_UpdateTr069Cfg(void).
+*\n Caller : STATUS GW_UpdateTr069Cfg(void).
 *
 *
 * @param[in] void * Snmp_Tlv11Buf : SNMP TLV's data buffer.
@@ -710,7 +710,7 @@ int parseTlv(Uint8 *confFileBuff, Uint32 confFileBuffLen);
 * @param[out] None.
 * @retval STATUS
 */
-static STATUS sendTLV11toSnmpAgent(void * Snmp_Tlv11Buf, int Snmp_Tlv11BufLen);
+STATUS sendTLV11toSnmpAgent(void * Snmp_Tlv11Buf, int Snmp_Tlv11BufLen);
 
 
 #endif

@@ -66,7 +66,7 @@ int GetSelectedWanMode();
 int GetLastKnownWanMode();
 void CheckAltWan();
 void CheckWanModeLocked();
-void WanMngrThread();
+void *WanMngrThread(void *args);
 void SelectedWanMode(int mode);
 void SetLastKnownWanMode(int mode);
 void HandleAutoWanMode(void);
@@ -77,6 +77,11 @@ int CheckWanConnection(int mode);
 void RevertTriedConfig(int mode);
 void AutoWan_BkupAndReboot();
 int CheckEthWanLinkStatus();
+void SetCurrentWanMode(int mode);
+void getWanMacAddress(macaddr_t* macAddr);
+#if defined(INTEL_PUMA7)
+void getNetworkDeviceMacAddress(macaddr_t* macAddr);
+#endif
 int CheckEthWanLinkStatus()
 {
     CCSP_HAL_ETHSW_PORT         port;
@@ -122,6 +127,7 @@ char* WanModeStr(int WanMode)
     {
          return "WAN_MODE_UNKNOWN";
     }
+    return "";
 }
 void LogWanModeInfo()
 {
@@ -270,7 +276,7 @@ void SetLastKnownWanMode(int mode)
         } 
 }
 
-void WanMngrThread()
+void *WanMngrThread(void *args)
 {
     AUTO_WAN_LOG("%s\n",__FUNCTION__);
     pthread_detach(pthread_self());
@@ -310,7 +316,7 @@ void WanMngrThread()
         HandleAutoWanMode();
         break;   
     } 
-
+    return args;
 }
 
 void HandleAutoWanMode(void)
@@ -455,7 +461,6 @@ int CheckWanStatus(int mode)
    char buff[256] = {0};
    char command[256] = {0};
    FILE *fp;
-   char *temp = NULL;
    char *found = NULL;
    char pRfSignalStatus = 0;
    int ret = 0;
@@ -601,7 +606,6 @@ return 1;
 
 int TryAltWan(int *mode)
 {
-    char pRfSignalStatus = 0;
     char command[128] = {0};
     char out_value[20] = {0};
     char ethwan_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH] = {0};
@@ -1076,7 +1080,7 @@ CosaDmlEthWanSetEnable
     )
 {
 #if ((defined (_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)) || defined(INTEL_PUMA7) || defined(_CBR2_PRODUCT_REQ_))
-        BOOL bGetStatus = FALSE;
+
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
     char command[64] = {0};
     {
