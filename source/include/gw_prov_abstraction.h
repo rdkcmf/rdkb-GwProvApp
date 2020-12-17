@@ -49,9 +49,9 @@
 #include <stdio.h>
 #include "stdbool.h"
 
-#define GW_TR069_TLV_MAX_URL_LEN            120  
-#define GW_TR069_TLV_MAX_USERNAME_LEN       96
-#define GW_TR069_TLV_MAX_PASSWORD_LEN       96
+#define GW_TR069_TLV_MAX_URL_LEN            256
+#define GW_TR069_TLV_MAX_USERNAME_LEN       256
+#define GW_TR069_TLV_MAX_PASSWORD_LEN       256
 
 /* TR-069 Management Server (TLV 2) sub-TLVs Tree */
 #define GW_SUBTLV_TR069_ENABLE_CWMP_EXTIF                 1
