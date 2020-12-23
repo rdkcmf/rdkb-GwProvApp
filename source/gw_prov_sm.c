@@ -1030,10 +1030,12 @@ static int GWP_SysCfgSetInt(const char *name, int int_value)
 
    sprintf(value, "%d", int_value);
    GWPROV_PRINT(" %s : name = %s , value = %s \n", __FUNCTION__, name, value);
-   if (!strncmp(name, "last_erouter_mode", strlen("last_erouter_mode")) && !strncmp(value, "2", strlen("2")))
+
+   if ((strcmp(name, "last_erouter_mode") == 0) && (strcmp(value, "2") == 0))
    {
        t2_event_d("SYS_INFO_ERouter_Mode_2", 1);
    }
+
    return syscfg_set(NULL, name, value);
 }
 
