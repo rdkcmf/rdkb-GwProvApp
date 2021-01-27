@@ -791,7 +791,7 @@ int TryAltWan(int *mode)
             {
 #endif
                v_secure_system("killall dibbler-client");
-               v_secure_system("sh /etc/dibbler/dibbler-init.sh");
+               v_secure_system("sh /lib/rdk/dibbler/dibbler-init.sh");
                v_secure_system("/usr/sbin/dibbler-client start");
 #if defined(INTEL_PUMA7)
             }
