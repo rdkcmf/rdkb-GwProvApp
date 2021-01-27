@@ -50,6 +50,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -95,10 +96,6 @@
 #define PORT 8081
 #endif
 
-/* Global Variables*/
-#if !defined(AUTOWAN_ENABLE)
-char log_buff[1024];
-#endif
 #define WHITE	0
 #define RED	3
 #define SOLID	0
@@ -157,15 +154,16 @@ char log_buff[1024];
 #define BASE_MAC_WLAN_OFFSET                 145
 #endif
 
-#if !defined(AUTOWAN_ENABLE)
 #ifdef FEATURE_SUPPORT_RDKLOG
-#define GWPROV_PRINT(fmt ...)    {\
-				    				snprintf(log_buff, 1023, fmt);\
-                                    RDK_LOG(LOG_INFO, COMP_NAME, "%s", log_buff);\
-                                 }
+void GWPROV_PRINT(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    RDK_LOG1(LOG_INFO, COMP_NAME, format, args);
+    va_end(args);
+}
 #else
 #define GWPROV_PRINT printf
-#endif
 #endif
 
 #if defined(AUTOWAN_ENABLE) && defined(INTEL_PUMA7)
