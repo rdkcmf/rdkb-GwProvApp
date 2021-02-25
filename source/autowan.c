@@ -9,6 +9,7 @@
 #include<sys/types.h> 
 #include<sys/stat.h> 
 #include<fcntl.h> 
+#include "secure_wrapper.h"
 #include "autowan.h"
 #include "gw_prov_sm.h"
 #include "cm_hal.h"
@@ -293,11 +294,11 @@ void *WanMngrThread(void *args)
         SetLastKnownWanMode(WAN_MODE_ETH);
         SetCurrentWanMode(WAN_MODE_ETH);
 #if defined(INTEL_PUMA7)
-        system("cmctl down");
+        v_secure_system("cmctl down");
 #endif
 #ifdef _SIMULATE_PC_
-        system("killall udhcpc");
-        system("udhcpc -i eth1 &");
+        v_secure_system("killall udhcpc");
+        v_secure_system("udhcpc -i eth1 &");
 #endif
         break;
  
@@ -306,8 +307,8 @@ void *WanMngrThread(void *args)
         SetLastKnownWanMode(WAN_MODE_DOCSIS);
         SetCurrentWanMode(WAN_MODE_DOCSIS);
         #ifdef _SIMULATE_PC_
-        system("killall udhcpc");
-        system("udhcpc -i eth2 &");
+        v_secure_system("killall udhcpc");
+        v_secure_system("udhcpc -i eth2 &");
         #endif
         break;
  
@@ -331,8 +332,8 @@ void HandleAutoWanMode(void)
        case WAN_MODE_ETH:
         AUTO_WAN_LOG("Booting-Up in Last known WanMode - %s\n",WanModeStr(GetLastKnownWanMode()));
 #ifdef _SIMULATE_PC_
-        system("killall udhcpc");
-        system("udhcpc -i eth1 &");
+        v_secure_system("killall udhcpc");
+        v_secure_system("udhcpc -i eth1 &");
 #endif
         ManageWanModes(WAN_MODE_ETH);
         break;
@@ -340,8 +341,8 @@ void HandleAutoWanMode(void)
        case WAN_MODE_DOCSIS:
         AUTO_WAN_LOG("Booting-Up in Last known WanMode - %s\n",WanModeStr(GetLastKnownWanMode()));
 #ifdef _SIMULATE_PC_
-        system("killall udhcpc");
-        system("udhcpc -i eth2 &");
+        v_secure_system("killall udhcpc");
+        v_secure_system("udhcpc -i eth2 &");
 #endif
         { 
                 ManageWanModes(WAN_MODE_DOCSIS);
@@ -351,8 +352,8 @@ void HandleAutoWanMode(void)
        case WAN_MODE_UNKNOWN:
         AUTO_WAN_LOG("Booting-Up in Last known WanMode - %s\n",WanModeStr(GetLastKnownWanMode()));
 #ifdef _SIMULATE_PC_
-        system("killall udhcpc");
-        system("udhcpc -i eth2 &");
+        v_secure_system("killall udhcpc");
+        v_secure_system("udhcpc -i eth2 &");
 #endif 
         ManageWanModes(WAN_MODE_DOCSIS); 
         break;
@@ -385,7 +386,7 @@ void ManageWanModes(int mode)
                     if(try_mode == WAN_MODE_ETH)
                     {
                         AUTO_WAN_LOG("%s - Shutting down DOCSIS\n", __FUNCTION__);
-                        system("cmctl down");
+                        v_secure_system("cmctl down");
                     }
 #endif
                 } //if(try_mode == mode)
@@ -459,7 +460,6 @@ extern token_t sysevent_token_gs;
 int CheckWanStatus(int mode)
 {
    char buff[256] = {0};
-   char command[256] = {0};
    FILE *fp;
    char *found = NULL;
    char pRfSignalStatus = 0;
@@ -482,12 +482,10 @@ int CheckWanStatus(int mode)
         else
         {
            /* Validate DOCSIS Connection CMStatus */
-           memset(command,0,sizeof(command));
-           snprintf(command, sizeof(command), "dmcli eRT getv Device.X_CISCO_COM_CableModem.CMStatus |grep -i 'value'|awk '{print $5}' |cut -f3 -d:");
            memset(buff,0,sizeof(buff));
 
            /* Open the command for reading. */
-           fp = popen(command, "r");
+           fp = v_secure_popen("r", "dmcli eRT getv Device.X_CISCO_COM_CableModem.CMStatus |grep -i 'value'|awk '{print $5}' |cut -f3 -d:");
            if (fp == NULL)
            {
               printf("<%s>:<%d> Error popen\n", __FUNCTION__, __LINE__);
@@ -500,7 +498,7 @@ int CheckWanStatus(int mode)
                  AUTO_WAN_LOG("AUTOWAN CM Status :%s\n", buff);
               }
               /* close */
-              pclose(fp);
+              v_secure_pclose(fp);
               found = strstr(buff,"OPERATIONAL");
               if(found)
               {
@@ -547,12 +545,10 @@ int CheckWanStatus(int mode)
         AUTO_WAN_LOG("%s - wan_connection_ifname= %s\n",__FUNCTION__,wan_connection_ifname);
 
         /* Validate IPv4 Connection on ETHWAN interface */
-        memset(command,0,sizeof(command));
-        snprintf(command, sizeof(command), "ifconfig %s |grep -i 'inet ' |awk '{print $2}' |cut -f2 -d:", wan_connection_ifname);
         memset(buff,0,sizeof(buff));
 
         /* Open the command for reading. */
-        fp = popen(command, "r");
+        fp = v_secure_popen("r", "ifconfig %s |grep -i 'inet ' |awk '{print $2}' |cut -f2 -d:", wan_connection_ifname);
         if (fp == NULL)
         {
            printf("<%s>:<%d> Error popen\n", __FUNCTION__, __LINE__);
@@ -566,7 +562,7 @@ int CheckWanStatus(int mode)
                printf("IP :%s", buff);
             }
             /* close */
-            pclose(fp);
+            v_secure_pclose(fp);
             if(buff[0] != 0)
             {
                return 0; // Shirish To-Do // Call validate IP function for GLOBAL IP check
@@ -574,12 +570,10 @@ int CheckWanStatus(int mode)
         } // fp == NULL
 
         /* Validate IPv6 Connection on ETHWAN interface */
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command), "ifconfig %s |grep -i 'inet6 ' |grep -i 'Global' |awk '{print $3}'", wan_connection_ifname);
         memset(buff,0,sizeof(buff));
 
         /* Open the command for reading. */
-        fp = popen(command, "r");
+        fp = v_secure_popen("r", "ifconfig %s |grep -i 'inet6 ' |grep -i 'Global' |awk '{print $3}'", wan_connection_ifname);
         if (fp == NULL)
         {
            printf("<%s>:<%d> Error popen\n", __FUNCTION__, __LINE__);
@@ -592,7 +586,7 @@ int CheckWanStatus(int mode)
               printf("IP :%s", buff);
            }
            /* close */
-           pclose(fp);
+           v_secure_pclose(fp);
            if(buff[0] != 0)
            {
               return 0;
@@ -606,7 +600,6 @@ return 1;
 
 int TryAltWan(int *mode)
 {
-    char command[128] = {0};
     char out_value[20] = {0};
     char ethwan_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH] = {0};
     char wanPhyName[20] = {0};
@@ -707,38 +700,28 @@ int TryAltWan(int *mode)
 
         }
 #endif
-        // detach EWAN interface from brlan0
-        memset(command, 0, sizeof(command));
 #if defined (_BRIDGE_UTILS_BIN_)
 
        	if (g_OvsEnable)
         {
-        	snprintf(command,sizeof(command),"/usr/bin/bridgeUtils del-port brlan0 %s",ethwan_ifname);
+        	v_secure_system("/usr/bin/bridgeUtils del-port brlan0 %s",ethwan_ifname);
         }	
        	else
         {
-               	snprintf(command, sizeof(command), "ip link set dev %s nomaster", ethwan_ifname);
+               	v_secure_system("ip link set dev %s nomaster", ethwan_ifname);
         }
 #else
-        snprintf(command, sizeof(command), "ip link set dev %s nomaster", ethwan_ifname);
+        v_secure_system("ip link set dev %s nomaster", ethwan_ifname);
 #endif
-        system(command);
-
-        memset(command, 0, sizeof(command));
-        snprintf(command, sizeof(command), "ip link set %s down", ethwan_ifname);
-        system(command);
+        v_secure_system("ip link set %s down", ethwan_ifname);
 
         // EWAN interface needs correct MAC before starting MACsec
         // This could probably be done once since MAC shouldn't change.
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "ip link set %s address %s", ethwan_ifname, wan_mac);
-        system(command);
-        printf("************************value of command = %s***********************\n", command);
-        AUTO_WAN_LOG("AUTOWAN %s cmd = %s\n",__FUNCTION__,command);
+        v_secure_system("ip link set %s address %s", ethwan_ifname, wan_mac);
+        printf("************************values : ip link set %s address %s***********************\n", ethwan_ifname, wan_mac);
+        AUTO_WAN_LOG("AUTOWAN %s cmd = ip link set %s address %s \n",__FUNCTION__, ethwan_ifname, wan_mac);
 
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "ifconfig %s up", ethwan_ifname);
-        system(command);
+        v_secure_system("ifconfig %s up", ethwan_ifname);
 
 #if defined (_MACSEC_SUPPORT_)
         AUTO_WAN_LOG("%s - Starting MACsec on %d with %d second timeout\n",__FUNCTION__,ETHWAN_DEF_INTF_NUM,MACSEC_TIMEOUT_SEC);
@@ -779,42 +762,26 @@ int TryAltWan(int *mode)
         }
 #endif
 #if defined(_COSA_BCM_ARM_)
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"brctl addif %s %s",wanPhyName,DOCSIS_INF_NAME);
-        system(command);
+        v_secure_system("brctl addif %s " DOCSIS_INF_NAME, wanPhyName);
         //system("brctl addif erouter0 cm0");
 #elif defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
         // move existing erouter interface erouter0@adp0 vlan 1000
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "ip link set %s down; ip link set %s name dummy-rf", wanPhyName, wanPhyName);
-        system(command);
+        v_secure_system("ip link set %s down; ip link set %s name dummy-rf", wanPhyName, wanPhyName);
 
         // setup erouter0 bridge for EWAN mode
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command), "ip link add %s type bridge", wanPhyName);
-        system(command);
+        v_secure_system("ip link add %s type bridge", wanPhyName);
 
         // prevent EWAN interface from auto configuring an IPv6 address
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "sysctl -w net.ipv6.conf.%s.autoconf=0", ethwan_ifname);
-        system(command);
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname);
-        system(command);
+        v_secure_system("sysctl -w net.ipv6.conf.%s.autoconf=0", ethwan_ifname);
+        v_secure_system("sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname);
 
         // Attach EWAN interface
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command), "ip link set %s master %s", ethwan_ifname, wanPhyName);
-        system(command);
+        v_secure_system("ip link set %s master %s", ethwan_ifname, wanPhyName);
 
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "ifconfig %s up", wanPhyName);
-        system(command);
+        v_secure_system("ifconfig %s up", wanPhyName);
 #endif
 
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "ifconfig %s up", ethwan_ifname);
-        system(command);
+        v_secure_system("ifconfig %s up", ethwan_ifname);
 
 // need to start DHCPv6 client when eRouterMode == ERT_MODE_DUAL
         if (eRouterMode == ERT_MODE_IPV6)
@@ -823,21 +790,15 @@ int TryAltWan(int *mode)
             if(0 == strncmp(dibblerClientEnable, "yes", sizeof(dibblerClientEnable)))
             {
 #endif
-               system("killall dibbler-client");
-               memset(command, 0, sizeof(command));
-               snprintf(command,sizeof(command), "sh /etc/dibbler/dibbler-init.sh");
-               system(command);
-               memset(command, 0, sizeof(command));
-               snprintf(command,sizeof(command), "/usr/sbin/dibbler-client start");
-               system(command);
+               v_secure_system("killall dibbler-client");
+               v_secure_system("sh /etc/dibbler/dibbler-init.sh");
+               v_secure_system("/usr/sbin/dibbler-client start");
 #if defined(INTEL_PUMA7)
             }
             else
             {
-               system("killall ti_dhcpv6c");
-               memset(command, 0, sizeof(command));
-               snprintf(command,sizeof(command), "ti_dhcp6c -plugin /lib/libgw_dhcp6plg.so -i %s -p /var/run/erouter_dhcp6c.pid &", wanPhyName);
-               system(command);
+               v_secure_system("killall ti_dhcpv6c");
+               v_secure_system("ti_dhcp6c -plugin /lib/libgw_dhcp6plg.so -i %s -p /var/run/erouter_dhcp6c.pid &", wanPhyName);
             }
 #endif
         } // (eRouterMode == ERT_MODE_IPV6)
@@ -846,30 +807,20 @@ int TryAltWan(int *mode)
 #if defined(INTEL_PUMA7)
             if(0 == strncmp(udhcpcEnable, "yes", sizeof(udhcpcEnable)))
             {
-               system("killall udhcpc");
-               memset(command, 0, sizeof(command));
-               snprintf(command,sizeof(command), "/sbin/udhcpc -i %s -p /tmp/udhcpc.erouter0.pid -s /etc/udhcpc.script &", wanPhyName);
-               system(command);
+               v_secure_system("killall udhcpc");
+               v_secure_system("/sbin/udhcpc -i %s -p /tmp/udhcpc.erouter0.pid -s /etc/udhcpc.script &", wanPhyName);
             }
             else
             {
-               system("killall ti_udhcpc");
-               memset(command, 0, sizeof(command));
-               snprintf(command,sizeof(command), "ti_udhcpc -plugin /lib/libert_dhcpv4_plugin.so -i %s -H DocsisGateway -p /var/run/eRT_ti_udhcpc.pid -B -b 4 &", wanPhyName);
-               system(command);
+               v_secure_system("killall ti_udhcpc");
+               v_secure_system("ti_udhcpc -plugin /lib/libert_dhcpv4_plugin.so -i %s -H DocsisGateway -p /var/run/eRT_ti_udhcpc.pid -B -b 4 &", wanPhyName);
             }
 #else
-            memset(command, 0, sizeof(command));
-            snprintf(command,sizeof(command), "udhcpc -i %s &", ethwan_ifname);
-            system(command);
-            memset(command,0,sizeof(command));
-            snprintf(command,sizeof(command),"sysctl -w net.ipv6.conf.%s.accept_ra=2",ethwan_ifname);
-            system(command);
+            v_secure_system("udhcpc -i %s &", ethwan_ifname);
+            v_secure_system("sysctl -w net.ipv6.conf.%s.accept_ra=2",ethwan_ifname);
             //system("sysctl -w net.ipv6.conf.eth3.accept_ra=2");
-            system("killall udhcpc");
-            memset(command, 0, sizeof(command));
-            snprintf(command,sizeof(command), "udhcpc -i %s &", ethwan_ifname);
-            system(command);
+            v_secure_system("killall udhcpc");
+            v_secure_system("udhcpc -i %s &", ethwan_ifname);
 #endif
         } // (eRouterMode == ERT_MODE_IPV4 || eRouterMode == ERT_MODE_DUAL)
     } // *mode == WAN_MODE_DOCSIS
@@ -883,12 +834,12 @@ int TryAltWan(int *mode)
            if(0 == strncmp(udhcpcEnable, "yes", sizeof(udhcpcEnable)))
            {
 #endif
-              system("killall udhcpc");
+              v_secure_system("killall udhcpc");
 #if defined (INTEL_PUMA7)
            }
            else
            {
-              system("killall ti_udhcpc");
+              v_secure_system("killall ti_udhcpc");
            }
 #endif
         } /* (eRouterMode == ERT_MODE_IPV4 || eRouterMode == ERT_MODE_DUAL)*/
@@ -898,12 +849,12 @@ int TryAltWan(int *mode)
            if(0 == strncmp(dibblerClientEnable, "yes", sizeof(dibblerClientEnable)))
            {
 #endif
-              system("killall dibbler-client");
+              v_secure_system("killall dibbler-client");
 #if defined (INTEL_PUMA7)
            }
            else
            {
-              system("killall ti_dhcpv6c");
+              v_secure_system("killall ti_dhcpv6c");
            }
 #endif
         } /*(eRouterMode == ERT_MODE_IPV6) */
@@ -938,29 +889,17 @@ int TryAltWan(int *mode)
 
             }
         #endif
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "ip link set %s down", wanPhyName);
-        system(command);
+        v_secure_system("ip link set %s down", wanPhyName);
 
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "ip link set %s down", ethwan_ifname);
-        system(command);
+        v_secure_system("ip link set %s down", ethwan_ifname);
 
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "ip link set %s nomaster", ethwan_ifname);
-        system(command);
+        v_secure_system("ip link set %s nomaster", ethwan_ifname);
 
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "brctl delbr %s", wanPhyName);
-        system(command);
+        v_secure_system("brctl delbr %s", wanPhyName);
 
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "ip link set dummy-rf name %s", wanPhyName);
-        system(command);
+        v_secure_system("ip link set dummy-rf name %s", wanPhyName);
 
-        memset(command, 0, sizeof(command));
-        snprintf(command,sizeof(command), "ifconfig %s up", wanPhyName);
-        system(command);
+        v_secure_system("ifconfig %s up", wanPhyName);
 #endif
 
     }
@@ -970,7 +909,6 @@ int TryAltWan(int *mode)
 
 void RevertTriedConfig(int mode)
 {
-    char command[64] = {0};
     char ethwan_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH] = {0};
 
     AUTO_WAN_LOG("%s - mode %d\n",__FUNCTION__, mode);
@@ -1003,48 +941,35 @@ void RevertTriedConfig(int mode)
             }
         #endif
 
-        snprintf(command,sizeof(command),"ifconfig %s down",ethwan_ifname);
-        system(command);
+        v_secure_system("ifconfig %s down",ethwan_ifname);
         //system("ifconfig eth3 down");
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"ip addr flush dev %s",ethwan_ifname);
-        system(command);
+        v_secure_system("ip addr flush dev %s",ethwan_ifname);
         //system("ip addr flush dev eth3");
         // redundant because ip addr flush removes both v4 and v6
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"ip -6 addr flush dev %s",ethwan_ifname);
-        system(command);
+        v_secure_system("ip -6 addr flush dev %s",ethwan_ifname);
         //system("ip -6 addr flush dev eth3");
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"sysctl -w net.ipv6.conf.%s.accept_ra=0",ethwan_ifname);
-        system(command);
+        v_secure_system("sysctl -w net.ipv6.conf.%s.accept_ra=0",ethwan_ifname);
         //system("sysctl -w net.ipv6.conf.eth3.accept_ra=0");
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"ifconfig %s up",ethwan_ifname);
-        system(command);
+        v_secure_system("ifconfig %s up",ethwan_ifname);
         //system("ifconfig eth3 up");
-        memset(command,0,sizeof(command));
 #if defined (_BRIDGE_UTILS_BIN_)
 
         if (g_OvsEnable)
         {
-            snprintf(command,sizeof(command),"/usr/bin/bridgeUtils add-port brlan0 %s",ethwan_ifname);
+            v_secure_system("/usr/bin/bridgeUtils add-port brlan0 %s",ethwan_ifname);
         }
         else
         {
-            snprintf(command,sizeof(command),"brctl addif brlan0 %s",ethwan_ifname);
+            v_secure_system("brctl addif brlan0 %s",ethwan_ifname);
         }
 #else
-        snprintf(command,sizeof(command),"brctl addif brlan0 %s",ethwan_ifname);
+        v_secure_system("brctl addif brlan0 %s",ethwan_ifname);
 #endif
-
-        system(command);
+        v_secure_system("brctl addif brlan0 %s",ethwan_ifname);
 
         //system("brctl addif brlan0 eth3");
 #if defined(_COSA_BCM_ARM_)
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"brctl addif erouter0 %s",DOCSIS_INF_NAME);
-        system(command);
+        v_secure_system("brctl addif erouter0 " DOCSIS_INF_NAME);
         //system("brctl addif erouter0 cm0");
 #endif
     }
@@ -1054,21 +979,13 @@ void RevertTriedConfig(int mode)
        AUTO_WAN_LOG("%s - shouldn't be here when mode is %d\n",__FUNCTION__,mode);
 
 #if defined(_COSA_BCM_ARM_)
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"ip addr flush dev %s",DOCSIS_INF_NAME);
-        system(command);
+        v_secure_system("ip addr flush dev " DOCSIS_INF_NAME);
         //system("ip addr flush dev cm0");
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"ip -6 addr flush dev %s",DOCSIS_INF_NAME);
-        system(command);
+        v_secure_system("ip -6 addr flush dev " DOCSIS_INF_NAME);
         //system("ip -6 addr flush dev cm0");
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"sysctl -w net.ipv6.conf.%s.accept_ra=0",DOCSIS_INF_NAME);
-        system(command);
+        v_secure_system("sysctl -w net.ipv6.conf. " DOCSIS_INF_NAME ".accept_ra=0");
         //system("sysctl -w net.ipv6.conf.cm0.accept_ra=0");
-        memset(command,0,sizeof(command));
-        snprintf(command,sizeof(command),"brctl addif erouter0 %s",DOCSIS_INF_NAME);
-        system(command);
+        v_secure_system("brctl addif erouter0 " DOCSIS_INF_NAME);
         //system("brctl addif erouter0 cm0");
 #endif
     }
@@ -1082,15 +999,13 @@ CosaDmlEthWanSetEnable
 #if ((defined (_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_)) || defined(INTEL_PUMA7) || defined(_CBR2_PRODUCT_REQ_))
 
 #if !defined(AUTO_WAN_ALWAYS_RECONFIG_EROUTER)
-    char command[64] = {0};
     {
        if(bEnable == FALSE)
        {
-        system("ifconfig erouter0 down");
-        snprintf(command,sizeof(command),"ip link set erouter0 name %s",ETHWAN_INF_NAME);
-        system(command);
-        system("ip link set dummy-rf name erouter0");
-        system("ifconfig eth0 up;ifconfig erouter0 up");
+        v_secure_system("ifconfig erouter0 down");
+        v_secure_system("ip link set erouter0 name %s",ETHWAN_INF_NAME);
+        v_secure_system("ip link set dummy-rf name erouter0");
+        v_secure_system("ifconfig eth0 up;ifconfig erouter0 up");
         
        } 
     }
@@ -1106,11 +1021,11 @@ CosaDmlEthWanSetEnable
         snprintf( buf, sizeof( buf ), "%s", bEnable ? "true" : "false" );
         if(bEnable)
         {
-            system("touch /nvram/ETHWAN_ENABLE");
+            v_secure_system("touch /nvram/ETHWAN_ENABLE");
         }
         else
         {
-            system("rm /nvram/ETHWAN_ENABLE");
+            v_secure_system("rm /nvram/ETHWAN_ENABLE");
         }
 
         if ( syscfg_set( NULL, "eth_wan_enabled", buf ) != 0 )
@@ -1166,6 +1081,6 @@ void AutoWan_BkupAndReboot()
                         }
 
     /* Need to do reboot the device here */
-    system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.RebootDevice string Device");
+    v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.RebootDevice string Device");
 }
 #endif

@@ -1192,7 +1192,7 @@ static void GWP_EnterRouterMode(void)
 //     DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_IN_PROGRESS);
 
 //    bridge_mode = 0;
-    v_secure_system("sysevent set bridge_mode %d", BRMODE_ROUTER);
+        v_secure_system("sysevent set bridge_mode %d", BRMODE_ROUTER);
 	syscfg_get(NULL, "MoCA_previous_status", MocaPreviousStatus, sizeof(MocaPreviousStatus));
 	prev = atoi(MocaPreviousStatus);
 	GWPROV_PRINT(" MocaPreviousStatus = %d \n", prev);
@@ -2377,7 +2377,6 @@ static int GWP_act_DocsisLinkUp_callback()
 static void *GWP_linkstate_threadfunc(void *data)
 {
     char *temp;
-    char command[50] = {0};
     char wanPhyName[20] = {0};
     char out_value[20] = {0};
     int outbufsz = sizeof(out_value);
@@ -2401,7 +2400,6 @@ static void *GWP_linkstate_threadfunc(void *data)
     {
         return (void *) -1;
     }
-    sprintf(command, "cat /sys/class/net/%s/operstate", wanPhyName);
 
     while(1)
     {
@@ -2409,7 +2407,7 @@ static void *GWP_linkstate_threadfunc(void *data)
         rc =  memset_s(buff,sizeof(buff), 0, sizeof(buff));
         ERR_CHK(rc);
         /* Open the command for reading. */
-        fp = popen(command, "r");
+        fp = v_secure_popen("r", "cat /sys/class/net/%s/operstate", wanPhyName);
         if (fp == NULL)
         {
             printf("<%s>:<%d> Error popen\n", __FUNCTION__, __LINE__);
@@ -2426,7 +2424,7 @@ static void *GWP_linkstate_threadfunc(void *data)
         }
 
         /* close */
-        pclose(fp);
+        v_secure_pclose(fp);
         rc = strcmp_s(buff, strlen(buff),(const char *)previousLinkStatus, &ind);
         ERR_CHK(rc);
         if ((!ind) && (rc == EOK))
