@@ -77,9 +77,6 @@ int CheckWanConnection(int mode);
 void RevertTriedConfig(int mode);
 void AutoWan_BkupAndReboot();
 int CheckEthWanLinkStatus();
-#if defined(INTEL_PUMA7)
-int CheckRebootNeeded();
-#endif
 int CheckEthWanLinkStatus()
 {
     CCSP_HAL_ETHSW_PORT         port;
@@ -398,20 +395,7 @@ void ManageWanModes(int mode)
                 // DOCSIS Locked
                 SetLastKnownWanMode(mode);
                 SetCurrentWanMode(mode);
-#if defined(INTEL_PUMA7)
-                AUTO_WAN_LOG("%s - WanMode %s is Locked, Set Current operational mode\n" , __FUNCTION__, WanModeStr(mode));
-                if (CheckRebootNeeded())
-                {
-                    AUTO_WAN_LOG("%s - Device is going to reboot...\n", __FUNCTION__);
-                    AutoWan_BkupAndReboot();
-                }
-                else
-                {
-                    AUTO_WAN_LOG("%s - Reboot is not required\n", __FUNCTION__);
-                }
-#else
                 AUTO_WAN_LOG("%s - WanMode %s is Locked, Set Current operational mode, reboot is not required, CheckWanConnection=%d\n",__FUNCTION__,WanModeStr(mode), ret);
-#endif
 #if defined (_MACSEC_SUPPORT_)
                 /* Stopping MACsec on Port since DOCSIS Succeeded */
                 AUTO_WAN_LOG("%s - Stopping MACsec on %d\n",__FUNCTION__,ETHWAN_DEF_INTF_NUM);
@@ -612,21 +596,6 @@ int CheckWanStatus(int mode)
     } // mode == WAN_MODE_ETH
 
 return 1;
-}
-#endif
-
-#if defined(INTEL_PUMA7)
-int CheckRebootNeeded()
-{
-    char buff[256] = {0};
-    sysevent_get(sysevent_fd_gs, sysevent_token_gs, "wan-status", buff, sizeof(buff));
-    AUTO_WAN_LOG("%s - wan-status is %s\n",__FUNCTION__,buff);
-    if ((access(ESAFE_CFG_FILE, F_OK) != -1) &&
-        ((!strncmp(buff, "started", sizeof(buff))) ||
-         (!strncmp(buff, "starting", sizeof(buff))))) {
-        return 0;
-    }
-    return 1;
 }
 #endif
 
