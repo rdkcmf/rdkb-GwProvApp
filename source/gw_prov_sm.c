@@ -2522,7 +2522,7 @@ static void *GWP_UpdateTr069CfgThread( void *data )
 	pthread_detach( pthread_self( ) );
 
 	//Check whether TLV binary is present or not
-	if( 0 == IsFileExists( TR69_TLVDATA_FILE ) )
+	if( 0 == IsFileExists( TR69_TLVDATA_FILE ) || (tlvObject == NULL))
 	{
 		GWPROV_PRINT(" %s file not present \n", TR69_TLVDATA_FILE );
 		IsNeedtoProceedFurther = FALSE;
@@ -3374,6 +3374,17 @@ int main(int argc, char *argv[])
     #endif
 
     GWPROV_PRINT(" Entry gw_prov_utopia\n");
+#if defined(FEATURE_RDKB_WAN_MANAGER)
+    GWPROV_PRINT(" Calling /etc/utopia/utopia_init.sh \n");
+    v_secure_system("/etc/utopia/utopia_init.sh");
+
+    GWPROV_PRINT("wait in loop \n");
+	while (1)
+	{
+		sleep(1);
+	}
+#endif
+
 #if !defined(INTEL_PUMA7)
     if( findProcessId(argv[0]) > 0 )
     {
