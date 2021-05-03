@@ -63,6 +63,21 @@ AC_C_INLINE
 
 # Checks for library functions.
 AC_FUNC_MALLOC
+WANMGR_LDFLAGS=" "
+FEATURE_RDKB_WAN_MANAGER=no
+AC_ARG_ENABLE([wanmgr],
+        AS_HELP_STRING([--enable-wanmgr],[enable wanmgr]),
+        [
+          case "${enableval}" in
+           yes) WANMGR_LDFLAGS="-lsysevent -lulog -lsecure_wrapper"
+                FEATURE_RDKB_WAN_MANAGER=yes ;;
+           no) AC_MSG_ERROR([wanmgr is disabled]) ;;
+          *) AC_MSG_ERROR([bad value ${enableval} for --enable-notify ]) ;;
+           esac
+           ],
+         [echo "wanmgr is disabled."])
+
+AC_SUBST(WANMGR_LDFLAGS)
 
 AC_SUBST(GTEST_ENABLE_FLAG)
 
@@ -71,5 +86,6 @@ AC_CONFIG_FILES(
 	Makefile
 )
 AM_CONDITIONAL([PLATFORM_RASPBERRYPI_ENABLED], [test $PLATFORM_RASPBERRYPI_ENABLED = yes])
+AM_CONDITIONAL([FEATURE_RDKB_WAN_MANAGER], [test $FEATURE_RDKB_WAN_MANAGER = yes])
 AC_OUTPUT
 

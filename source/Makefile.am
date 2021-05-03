@@ -20,17 +20,34 @@ AM_CFLAGS = -D_ANSC_LINUX
 AM_CFLAGS += -D_ANSC_USER
 AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
 AM_CFLAGS += -DCONFIG_PRIMARY_NET_BRIDGE_MODE
+AM_LDFLAGS = -lsyscfg -lulog -lsysevent
+if !PLATFORM_RASPBERRYPI_ENABLED
+if !FEATURE_RDKB_WAN_MANAGER
+AM_LDFLAGS += -lgwprovappabs
+endif
+endif
 
 ACLOCAL_AMFLAGS = -I m4
 
 bin_PROGRAMS = gw_prov_utopia
 
-gw_prov_utopia_CPPFLAGS = -I$(srcdir)/include
-gw_prov_utopia_SOURCES = gw_prov_sm.c autowan.c
-if PLATFORM_RASPBERRYPI_ENABLED
-gw_prov_utopia_LDFLAGS = -lsysevent -lsyscfg -lulog
+gw_prov_utopia_CPPFLAGS = -I/var/tmp/pc-rdkb/include $(CPPFLAGS) -I$(srcdir)/include -I${PKG_CONFIG_SYSROOT_DIR}/$(includedir)/ruli/
+if FEATURE_RDKB_WAN_MANAGER
+gw_prov_utopia_SOURCES = gw_prov_sm_generic.c
 else
-gw_prov_utopia_LDFLAGS =  -lgwprovappabs -lsysevent -lsyscfg -lulog -lsecure_wrapper
+gw_prov_utopia_SOURCES = gw_prov_sm.c autowan.c
+endif
+
+gw_prov_utopia_LDFLAGS = -lsysevent -lsyscfg -lulog -lsecure_wrapper
+
+if !PLATFORM_RASPBERRYPI_ENABLED
+if !FEATURE_RDKB_WAN_MANAGER
+gw_prov_utopia_LDFLAGS += -lgwprovappabs
+endif
+endif
+
+if FEATURE_RDKB_WAN_MANAGER
+gw_prov_utopia_LDFLAGS +=  -lhal_ethsw
 endif
 gw_prov_utopia_CPPFLAGS += -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/ccsp -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/dbus-1.0 -I${PKG_CONFIG_SYSROOT_DIR}$(libdir)/dbus-1.0/include
 
