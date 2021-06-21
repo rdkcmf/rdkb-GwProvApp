@@ -175,6 +175,8 @@ char log_buff[1024];
 #define ETHWAN_FILE     "/nvram/ETHWAN_ENABLE"
 #endif
 
+void _get_shell_output(FILE *fp, char * buf, int len);
+
 static Tr69TlvData *tlvObject=NULL;
 static int objFlag = 1;
 
@@ -2023,9 +2025,19 @@ static void *GWP_sysevent_threadfunc(void *data)
                 			responsefd = NULL;
 					if ( 204 == iresCode )
 					{
-						
-						ledMgmt.State	 = BLINK;
-						ledMgmt.Interval = 1;
+						/*Check NotifyWifiChanges is true to make sure device in captive portal*/
+						FILE *fp;
+						char buf[256] = {0};
+						fp = v_secure_popen("r", "psmcli get eRT.com.cisco.spvtg.ccsp.Device.WiFi.NotifyWiFiChanges");
+						_get_shell_output(fp, buf, sizeof(buf));
+						rc = strcmp_s("true", strlen("true"),buf, &ind);
+						ERR_CHK(rc);
+                        			if ((ind == 0) && (rc == EOK))
+                        			{
+							GWPROV_PRINT("NotifyWiFiChanges is true\n");
+							ledMgmt.State	 = BLINK;
+							ledMgmt.Interval = 1;
+						}
 					}
             	    		 }
 			     }
@@ -3324,6 +3336,23 @@ static void LAN_start() {
         }
     }
     return;
+}
+
+void _get_shell_output(FILE *fp, char *buf, int len)
+{
+    char * p;
+
+    if (fp)
+    {
+        if(fgets (buf, len-1, fp) != NULL)
+        {
+            buf[len-1] = '\0';
+            if ((p = strchr(buf, '\n'))) {
+                *p = '\0';
+            }
+        }
+    v_secure_pclose(fp);
+    }
 }
 
 /**************************************************************************/
