@@ -2705,6 +2705,13 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
     TlvParsingStatusExtIf_e tlvStatus;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     
+    GWPROV_PRINT("GWP_act_DocsisCfgfile_callback : The Previous EROUTERMODE=%d\n",eRouterMode);
+    GWPROV_PRINT("GWP_act_DocsisCfgfile_callback : The Previous BRIDGE MODE=%d\n",bridge_mode);
+    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
+    GWPROV_PRINT("GWP_act_DocsisCfgfile_callback : The Refreshed EROUTERMODE=%d\n",eRouterMode);
+    GWPROV_PRINT("GWP_act_DocsisCfgfile_callback : The Refreshed BRIDGE MODE=%d\n",bridge_mode);
+
     oldRouterMode = eRouterMode;
 
     if( cfgFile != NULL)
@@ -3184,15 +3191,9 @@ if( uid == 0 )
 #ifdef INTEL_PUMA7
     if(!IsFileExists(ETHWAN_FILE))
     {
-        bridge_mode = GWP_SysCfgGetInt("bridge_mode");
-        if(bridge_mode == 0)
-        {
-            AutoWAN_main();
-        }
+    	AutoWAN_main();
     }
 #else
-	bridge_mode = GWP_SysCfgGetInt("bridge_mode");
-	if(bridge_mode == 0)
 	AutoWAN_main();
 #endif
 #endif
