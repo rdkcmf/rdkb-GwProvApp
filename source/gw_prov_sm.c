@@ -1023,17 +1023,14 @@ static int GWP_SysCfgGetInt(const char *name)
  **************************************************************************/
 static int GWP_SysCfgSetInt(const char *name, int int_value)
 {
-   char value[20];
+   GWPROV_PRINT(" %s : name = %s , value = %d \n", __FUNCTION__, name, int_value);
 
-   sprintf(value, "%d", int_value);
-   GWPROV_PRINT(" %s : name = %s , value = %s \n", __FUNCTION__, name, value);
-
-   if ((strcmp(name, "last_erouter_mode") == 0) && (strcmp(value, "2") == 0))
+   if ((strcmp(name, "last_erouter_mode") == 0) && (int_value == 2))
    {
        t2_event_d("SYS_INFO_ERouter_Mode_2", 1);
    }
 
-   return syscfg_set(NULL, name, value);
+   return syscfg_set_u(NULL, name, int_value);
 }
 
 #if !defined(_PLATFORM_RASPBERRYPI_)
@@ -3268,22 +3265,19 @@ if ( uid == 0 )
     }
 
     /* Update LAN bridge mac address offset */
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_BRIDGE_OFFSET);
-    if ((syscfg_set(NULL, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    if ((syscfg_set_u(NULL, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY, BASE_MAC_BRIDGE_OFFSET) != 0))
     {
         fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_BRIDGE_OFFSET_SYSCFG_KEY);
     }
 
     /* Update wired LAN interface mac address offset */
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_LAN_OFFSET);
-    if ((syscfg_set(NULL, BASE_MAC_LAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    if ((syscfg_set_u(NULL, BASE_MAC_LAN_OFFSET_SYSCFG_KEY, BASE_MAC_LAN_OFFSET) != 0))
     {
         fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_LAN_OFFSET_SYSCFG_KEY);
     }
 
     /* Update WiFi interface mac address offset */
-    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "%d", BASE_MAC_WLAN_OFFSET);
-    if ((syscfg_set(NULL, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY, sysevent_cmd) != 0))
+    if ((syscfg_set_u(NULL, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY, BASE_MAC_WLAN_OFFSET) != 0))
     {
         fprintf(stderr, "Error in %s: Failed to set %s!\n", __FUNCTION__, BASE_MAC_WLAN_OFFSET_SYSCFG_KEY);
     }
