@@ -1252,17 +1252,10 @@ static void GWP_EnterBridgeMode(void)
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
 	syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
 	GWPROV_PRINT(" MoCA_current_status = %s \n", MocaStatus);
-	if ((syscfg_set(NULL, "MoCA_previous_status", MocaStatus) != 0)) 
+	if ((syscfg_set_commit(NULL, "MoCA_previous_status", MocaStatus) != 0))
     {
         printf("syscfg_set failed\n");
     }
-    else 
-    {
-        if (syscfg_commit() != 0) 
-        {
-		    printf("syscfg_commit failed\n");
-	    }
-	}
     v_secure_system("dmcli eRT setv Device.MoCA.Interface.1.Enable bool false");
     snprintf(BridgeMode, sizeof(BridgeMode), "%d", active_mode);
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge_mode", BridgeMode, 0);

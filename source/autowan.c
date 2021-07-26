@@ -208,17 +208,9 @@ void SetCurrentWanMode(int mode)
 {
     g_CurrentWanMode = mode;
     AUTO_WAN_LOG("%s Set Current WanMode = %s\n",__FUNCTION__, WanModeStr(g_CurrentWanMode)); 
-    if (syscfg_set_u(NULL, "curr_wan_mode", g_CurrentWanMode) != 0)
+    if (syscfg_set_u_commit(NULL, "curr_wan_mode", g_CurrentWanMode) != 0)
     {
             AUTO_WAN_LOG("syscfg_set failed for curr_wan_mode\n");
-    }
-    else
-    {
-            if (syscfg_commit() != 0)
-            {
-                AUTO_WAN_LOG("syscfg_commit failed for curr_wan_mode\n");
-            }
-
     }
 }
 
@@ -231,17 +223,9 @@ void SelectedWanMode(int mode)
 {
     g_SelectedWanMode = mode;
     AUTO_WAN_LOG("%s Set  SelectedWanMode = %s\n",__FUNCTION__, WanModeStr(g_SelectedWanMode));
-        if (syscfg_set_u(NULL, "selected_wan_mode", mode) != 0)
+        if (syscfg_set_u_commit(NULL, "selected_wan_mode", mode) != 0)
         {
             AUTO_WAN_LOG("syscfg_set failed for curr_wan_mode\n");
-        }
-        else
-        {
-            if (syscfg_commit() != 0)
-            {
-                AUTO_WAN_LOG("syscfg_commit failed for curr_wan_mode\n");
-            }
-
         }
 }
 
@@ -254,17 +238,9 @@ void SetLastKnownWanMode(int mode)
 {
     g_LastKnowWanMode = mode;
     AUTO_WAN_LOG("%s Set Last Known WanMode = %s\n",__FUNCTION__, WanModeStr(g_LastKnowWanMode));
-        if (syscfg_set_u(NULL, "last_wan_mode", mode) != 0)
+        if (syscfg_set_u_commit(NULL, "last_wan_mode", mode) != 0)
         {
             AUTO_WAN_LOG("syscfg_set failed for last_wan_mode\n");
-        }
-        else
-        {
-            if (syscfg_commit() != 0)
-            {
-                AUTO_WAN_LOG("syscfg_commit failed for last_wan_mode\n");
-            }
-
         } 
 }
 
@@ -680,17 +656,9 @@ int TryAltWan(int *mode)
         AUTO_WAN_LOG("%s - before mode= %s ethwan_ifname= %s, wanPhyName= %s\n",__FUNCTION__,WanModeStr(WAN_MODE_ETH),ethwan_ifname,wanPhyName);
 #if defined (_BRIDGE_UTILS_BIN_)
 
-        if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
+        if ( syscfg_set_commit( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
         {
         	AUTO_WAN_LOG( "syscfg_set failed for eth_wan_iface_name\n" );
-        }
-        else
-        {
-        	if ( syscfg_commit() != 0 )
-                {
-                    AUTO_WAN_LOG( "syscfg_commit failed for eth_wan_iface_name\n" );
-                }
-
         }
 #endif
 #if defined (_BRIDGE_UTILS_BIN_)
@@ -741,17 +709,9 @@ int TryAltWan(int *mode)
 
 #if defined (_BRIDGE_UTILS_BIN_)
 
-        if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
+        if ( syscfg_set_commit( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
         {
         	AUTO_WAN_LOG( "syscfg_set failed for eth_wan_iface_name\n" );
-        }
-        else
-        {
-                if ( syscfg_commit() != 0 )
-                {
-                    AUTO_WAN_LOG( "syscfg_commit failed for eth_wan_iface_name\n" );
-                }
-
         }
 #endif
 #if defined(_COSA_BCM_ARM_)
@@ -869,17 +829,9 @@ int TryAltWan(int *mode)
 
         #if defined (_BRIDGE_UTILS_BIN_)
 
-            if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
+            if ( syscfg_set_commit( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
             {
                 AUTO_WAN_LOG( "syscfg_set failed for eth_wan_iface_name\n" );
-            }
-            else
-            {
-                if ( syscfg_commit() != 0 )
-                {
-                    AUTO_WAN_LOG( "syscfg_commit failed for eth_wan_iface_name\n" );
-                }
-
             }
         #endif
         v_secure_system("ip link set %s down", wanPhyName);
@@ -920,17 +872,9 @@ void RevertTriedConfig(int mode)
 
         #if defined (_BRIDGE_UTILS_BIN_)
 
-            if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
+            if ( syscfg_set_commit( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
             {
                 AUTO_WAN_LOG( "syscfg_set failed for eth_wan_iface_name\n" );
-            }
-            else
-            {
-                if ( syscfg_commit() != 0 )
-                {
-                    AUTO_WAN_LOG( "syscfg_commit failed for eth_wan_iface_name\n" );
-                }
-
             }
         #endif
 
@@ -1018,19 +962,10 @@ CosaDmlEthWanSetEnable
             v_secure_system("rm /nvram/ETHWAN_ENABLE");
         }
 
-        if ( syscfg_set( NULL, "eth_wan_enabled", bEnable ? "true" : "false") != 0 )
+        if ( syscfg_set_commit( NULL, "eth_wan_enabled", bEnable ? "true" : "false") != 0 )
         {
             AUTO_WAN_LOG( "syscfg_set failed for eth_wan_enabled\n" );
             return RETURN_ERR;
-        }
-        else
-        {
-            if ( syscfg_commit() != 0 )
-            {
-                AUTO_WAN_LOG( "syscfg_commit failed for eth_wan_enabled\n" );
-                return RETURN_ERR;
-            }
-            
         }
     }
 #endif
@@ -1048,25 +983,10 @@ void AutoWan_BkupAndReboot()
                         {
                                 AUTO_WAN_LOG("RDKB_REBOOT : RebootDevice syscfg_set failed GUI\n");
                         }
-                        else
-                        {
-                                if (syscfg_commit() != 0)
-                                {
-                                        AUTO_WAN_LOG("RDKB_REBOOT : RebootDevice syscfg_commit failed for ETHWAN mode\n");
-                                }
-                        }
 
-
-                        if (syscfg_set(NULL, "X_RDKCENTRAL-COM_LastRebootCounter", "1") != 0)
+                        if (syscfg_set_commit(NULL, "X_RDKCENTRAL-COM_LastRebootCounter", "1") != 0)
                         {
                                 AUTO_WAN_LOG("syscfg_set failed\n");
-                        }
-                        else
-                        {
-                                if (syscfg_commit() != 0)
-                                {
-                                        AUTO_WAN_LOG("syscfg_commit failed\n");
-                                }
                         }
 
     /* Need to do reboot the device here */
