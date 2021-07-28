@@ -3144,9 +3144,15 @@ if( uid == 0 )
 #ifdef INTEL_PUMA7
     if(!IsFileExists(ETHWAN_FILE))
     {
-    	AutoWAN_main();
+        bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+        if(bridge_mode == 0)
+        {
+            AutoWAN_main();
+        }
     }
 #else
+	bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+	if(bridge_mode == 0)
 	AutoWAN_main();
 #endif
 #endif
