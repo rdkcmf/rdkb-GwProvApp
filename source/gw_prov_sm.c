@@ -227,6 +227,7 @@ typedef enum {
     IPV6_PREFIX,
     CURRENT_WAN_IPADDR,
     IPV6_DHCP6_ADDR,
+    CONN_STATUS,
     GWP_THREAD_ERROR
 } eGwpThreadType;
 
@@ -252,7 +253,10 @@ GwpThread_MsgItem gwpthreadMsgArr[] = {
     {"wan-status",                                 WAN_STATUS},
     {"ipv6_prefix",                                IPV6_PREFIX},
     {"current_wan_ipaddr",                         CURRENT_WAN_IPADDR},
-    {"ipv6_dhcp6_addr",                            IPV6_DHCP6_ADDR}};
+    {"ipv6_dhcp6_addr",                            IPV6_DHCP6_ADDR},
+    {"conn-status",                                CONN_STATUS},
+
+};
 
 /**************************************************************************/
 /*      LOCAL DECLARATIONS:                                               */
@@ -1751,6 +1755,8 @@ static void *GWP_sysevent_threadfunc(void *data)
     async_id_t pnm_asyncid;
 #if defined(_XB6_PRODUCT_REQ_)
     async_id_t ping_status_asyncid;
+    async_id_t conn_status_asyncid;
+
 #endif
 
 #if defined (INTEL_PUMA7)
@@ -1785,6 +1791,8 @@ static void *GWP_sysevent_threadfunc(void *data)
 #if defined(_XB6_PRODUCT_REQ_)
 
     sysevent_setnotification(sysevent_fd, sysevent_token, "ping-status",  &ping_status_asyncid);
+    sysevent_setnotification(sysevent_fd, sysevent_token, "conn-status",  &conn_status_asyncid);
+
 #endif
 #if defined (INTEL_PUMA7)
     //Intel Proposed RDKB Generic Bug Fix from XB6 SDK		
@@ -1954,23 +1962,40 @@ static void *GWP_sysevent_threadfunc(void *data)
                 }
             }
 #if defined(_XB6_PRODUCT_REQ_)
-            else if (ret_value == PING_STATUS)
+            else if ( (ret_value == PING_STATUS) || ( ret_value == CONN_STATUS ) )
             {
   
-                 GWPROV_PRINT("Received ping-status event notification, ping-status value is %s\n", val);
                  rc =  memset_s(&ledMgmt,sizeof(LEDMGMT_PARAMS), 0, sizeof(LEDMGMT_PARAMS));
                  ERR_CHK(rc);
+                 if ( ret_value == PING_STATUS )
+                 {
+                    GWPROV_PRINT("Received ping-status event notification, ping-status value is %s\n", val);
+                    rc = strcmp_s("missed", strlen("missed"),val, &ind);
+                 }
+                 else
+                 {
+                    GWPROV_PRINT("Received conn-status event notification, conn-status value is %s\n", val);
+                    rc = strcmp_s("failed", strlen("failed"),val, &ind);
+                 }
 
-                rc = strcmp_s("missed", strlen("missed"),val, &ind);
                 ERR_CHK(rc);
+
                 if ((ind == 0) && (rc == EOK))
                 {
 
 			ledMgmt.LedColor = RED;
 			ledMgmt.State	 = SOLID;
 			ledMgmt.Interval = 0;
-
+                 if ( ret_value == PING_STATUS )
+                 {
                         GWPROV_PRINT("Ping missed, Setting LED to RED\n");
+                 }
+                 else
+                 {
+                        GWPROV_PRINT("Connection failed, Setting LED to RED\n");
+
+                 }
+
 			if(0 != platform_hal_setLed(&ledMgmt)) {
 
 				GWPROV_PRINT("platform_hal_setLed failed\n");
@@ -1980,8 +2005,17 @@ static void *GWP_sysevent_threadfunc(void *data)
                 }
                 else 
                 {
-		   rc = strcmp_s("received", strlen("received"),val, &ind);
-                   ERR_CHK(rc);
+
+                if ( ret_value == PING_STATUS )
+                {
+                    rc = strcmp_s("received", strlen("received"),val, &ind);
+                }
+                else
+                {
+                    rc = strcmp_s("success", strlen("success"),val, &ind);
+                }
+                ERR_CHK(rc);
+
                    if ((ind == 0) && (rc == EOK))
                    {
                    // Set LED state based on whether device is in CP or not
