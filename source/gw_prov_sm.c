@@ -2705,6 +2705,8 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
     TlvParsingStatusExtIf_e tlvStatus;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     
+    oldRouterMode = eRouterMode;
+
     if( cfgFile != NULL)
     {
       cfgFileName = cfgFile;
@@ -2765,8 +2767,6 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
         goto closeFile;
     }
 
-    oldRouterMode = eRouterMode;
-
     
     tlvStatus = parseTlv(cfgFileBuff, cfgFileBuffLen);
 
@@ -2784,8 +2784,6 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
 	//Start GWP_UpdateTr069CfgThread 
     GWPROV_PRINT("GWP_UpdateTr069CfgThread started\n");
 	pthread_create( &Updatetr069CfgThread, NULL, &GWP_UpdateTr069CfgThread, NULL );  
-
-    GWP_UpdateERouterMode();
 
 #if defined (INTEL_PUMA7)
     //Intel Proposed RDKB Generic Bug Fix from XB6 SDK  
@@ -2810,6 +2808,7 @@ gimReply:
     /* Reply to GIM SRN */
     notificationReply_CfgFileForEsafe();
     
+    GWP_UpdateERouterMode();
 
     return 0;
 }
