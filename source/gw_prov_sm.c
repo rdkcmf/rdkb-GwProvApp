@@ -90,7 +90,7 @@
 #include <telemetry_busmessage_sender.h>
 #include "safec_lib_common.h"
 
-#if defined(_XB6_PRODUCT_REQ_)
+#if defined(_XB6_PRODUCT_REQ_) || defined(_CBR2_PRODUCT_REQ_)
 #include "platform_hal.h"
 #endif
 //Added for lxcserver thread function
@@ -1753,7 +1753,7 @@ static void *GWP_sysevent_threadfunc(void *data)
     async_id_t wan_status_asyncid;
     async_id_t ipv6_prefix_asyncid;
     async_id_t pnm_asyncid;
-#if defined(_XB6_PRODUCT_REQ_)
+#if defined(_XB6_PRODUCT_REQ_) || defined(_CBR2_PRODUCT_REQ_)
     async_id_t ping_status_asyncid;
     async_id_t conn_status_asyncid;
 
@@ -1788,8 +1788,7 @@ static void *GWP_sysevent_threadfunc(void *data)
     sysevent_setnotification(sysevent_fd, sysevent_token, "pnm-status",  &pnm_asyncid);
 #endif
 
-#if defined(_XB6_PRODUCT_REQ_)
-
+#if defined(_XB6_PRODUCT_REQ_) || defined(_CBR2_PRODUCT_REQ_)
     sysevent_setnotification(sysevent_fd, sysevent_token, "ping-status",  &ping_status_asyncid);
     sysevent_setnotification(sysevent_fd, sysevent_token, "conn-status",  &conn_status_asyncid);
 
@@ -1849,7 +1848,7 @@ static void *GWP_sysevent_threadfunc(void *data)
 #endif
 
 
-#if defined(_XB6_PRODUCT_REQ_)
+#if defined(_XB6_PRODUCT_REQ_) || defined(_CBR2_PRODUCT_REQ_)
  	LEDMGMT_PARAMS ledMgmt;
 	FILE *responsefd=NULL;
       	char *networkResponse = "/var/tmp/networkresponse.txt";
@@ -1961,7 +1960,7 @@ static void *GWP_sysevent_threadfunc(void *data)
                         LAN_start();
                 }
             }
-#if defined(_XB6_PRODUCT_REQ_)
+#if defined(_XB6_PRODUCT_REQ_) || defined(_CBR2_PRODUCT_REQ_)
             else if ( (ret_value == PING_STATUS) || ( ret_value == CONN_STATUS ) )
             {
   
@@ -1983,6 +1982,20 @@ static void *GWP_sysevent_threadfunc(void *data)
                 if ((ind == 0) && (rc == EOK))
                 {
 
+#if defined(_CBR2_PRODUCT_REQ_)
+			ledMgmt.LedColor = WHITE;
+			ledMgmt.State	 = BLINK;
+			ledMgmt.Interval = 5;
+                 if ( ret_value == PING_STATUS )
+                 {
+                        GWPROV_PRINT("Ping missed, Setting LED to WHITE FAST BLINK\n");
+                 }
+                 else
+                 {
+                        GWPROV_PRINT("Connection failed, Setting LED to WHITE FAST BLINK\n");
+
+                 }
+#else
 			ledMgmt.LedColor = RED;
 			ledMgmt.State	 = SOLID;
 			ledMgmt.Interval = 0;
@@ -1995,6 +2008,7 @@ static void *GWP_sysevent_threadfunc(void *data)
                         GWPROV_PRINT("Connection failed, Setting LED to RED\n");
 
                  }
+#endif
 
 			if(0 != platform_hal_setLed(&ledMgmt)) {
 
