@@ -378,6 +378,7 @@ void ManageWanModes(int mode)
                 // EWAN locked
                 SetLastKnownWanMode(try_mode);
                 SetCurrentWanMode(try_mode);
+                v_secure_system("touch /tmp/autowan_iface_finalized");
                 if(try_mode == mode)
                 {
                     // Can this ever happen?  Locked on EWAN and no reboot?
@@ -402,6 +403,7 @@ void ManageWanModes(int mode)
                 // DOCSIS Locked
                 SetLastKnownWanMode(mode);
                 SetCurrentWanMode(mode);
+                v_secure_system("touch /tmp/autowan_iface_finalized");
                 AUTO_WAN_LOG("%s - WanMode %s is Locked, Set Current operational mode, reboot is not required, CheckWanConnection=%d\n",__FUNCTION__,WanModeStr(mode), ret);
 #if defined (_MACSEC_SUPPORT_)
                 /* Stopping MACsec on Port since DOCSIS Succeeded */
