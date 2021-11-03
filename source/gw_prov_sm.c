@@ -1137,7 +1137,7 @@ static void GWP_DocsisInited(void)
            
      eSafeDevice_AddeRouterPhysicalNetworkInterface("usb0",True);
 
-#if !defined(INTEL_PUMA7)
+#if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_ARM_)
     /* Register on more events */
     registerDocsisEvents();
     
@@ -2934,7 +2934,7 @@ static int GWP_act_DocsisInited_callback()
     /* Coverity Issue Fix - CID:73933 : UnInitialised variable */
     char soladdrStr[64] = {0};
     GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
-#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(INTEL_PUMA7)
+#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(INTEL_PUMA7) && !defined(_COSA_BCM_ARM_)
     /* Docsis initialized */
     printf("Got DOCSIS Initialized\n");
 
