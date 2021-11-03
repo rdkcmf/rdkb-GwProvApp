@@ -466,7 +466,7 @@ int CheckWanStatus(int mode)
    char *found = NULL;
    char pRfSignalStatus = 0;
    int ret = 0;
-   char wan_connection_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH] = {0};
+   char wan_connection_ifname[ETHWAN_INTERFACE_NAME_MAX_LENGTH+230] = {0};
 
     if (mode == WAN_MODE_DOCSIS)
     {

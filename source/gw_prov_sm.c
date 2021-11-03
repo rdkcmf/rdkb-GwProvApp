@@ -3464,7 +3464,8 @@ int main(int argc, char *argv[])
         obj->pDocsis_gotEnable = (fpDocsisEnabled)docsis_gotEnable_callback;
         obj->pGW_Tr069PaSubTLVParse = (fpGW_Tr069PaSubTLVParse)GW_Tr069PaSubTLVParse;
 #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
-        obj->pGW_SetTopologyMode = (fpGW_SetTopologyMode)GW_setTopologyMode;
+	void* pGW_setTopologyMode = GW_setTopologyMode;
+        obj->pGW_SetTopologyMode = (fpGW_SetTopologyMode)pGW_setTopologyMode;
 #endif
 
     	GWPROV_PRINT(" Creating Event Handler\n");
