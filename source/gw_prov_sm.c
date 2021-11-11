@@ -59,9 +59,6 @@
 #include <sys/types.h>
 #endif
 #include <unistd.h>
-#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(INTEL_PUMA7)
-#include <ruli.h>
-#endif
 #include <sysevent/sysevent.h>
 #if defined(INTEL_PUMA7)
 #include "CC-ARM/sys_types.h"
