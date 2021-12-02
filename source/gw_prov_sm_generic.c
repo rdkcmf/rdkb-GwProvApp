@@ -318,6 +318,23 @@ static void GWPEthWan_EnterRouterMode(void);
 /**************************************************************************/
 /*      LOCAL FUNCTIONS:                                                  */
 /**************************************************************************/
+int IsEthWanEnabled()
+{
+    char buf[32];
+
+    memset(buf,0,sizeof(buf));
+    if (0 == access( "/nvram/ETHWAN_ENABLE" , F_OK ))
+    {
+        if (syscfg_get(NULL, "eth_wan_enabled", buf, sizeof(buf)) == 0)
+        {
+            if (0 == strcmp(buf,"true"))
+            {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
 
 eGwpThreadType Get_GwpThreadType(char * name)
 {
@@ -490,6 +507,12 @@ static void GWPEthWan_EnterRouterMode(void)
     v_secure_system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
 
     v_secure_system("sysevent set forwarding-restart");
+}
+
+static void UpdateActiveDeviceMode()
+{
+    bridge_mode = GWPEthWan_SysCfgGetInt("bridge_mode");
+    active_mode = getSyseventBridgeMode(eRouterMode,bridge_mode);
 }
 
 static void GWPEthWan_ProcessUtopiaRestart(void)
@@ -850,7 +873,8 @@ static void *GWP_sysevent_threadfunc(void *data)
         else
         {
             GWPROV_PRINT(" %s : name = %s, val = %s \n", __FUNCTION__, name, val );
-            eGwpThreadType ret_value;            
+            eGwpThreadType ret_value;
+            ethwan_enabled = IsEthWanEnabled();
             ret_value = Get_GwpThreadType(name);
             if (ret_value == WEBUI_FLAG_RESET)
             {
@@ -858,10 +882,16 @@ static void *GWP_sysevent_threadfunc(void *data)
             }
             else if (ret_value == SYSTEM_RESTART)
             {
+                GWPROV_PRINT("gw_prov_sm: got system restart\n");                
                 if (ethwan_enabled)
                 {
-                    GWPROV_PRINT("gw_prov_sm: got system restart\n");                
                     GWPEthWan_ProcessUtopiaRestart();
+                }
+                else
+                {
+                    // CM agent handles router/bridge mode toggle in Docsis wan mode
+                    // Here only update active mode variable.
+                    UpdateActiveDeviceMode();
                 }
             }
             else if (ret_value == IPV6STATUS)
@@ -1280,13 +1310,15 @@ static int GWP_act_ProvEntry()
     unsigned char buf[64];
     errno_t rc       = -1;
     int     ind      = -1;
- 
+    char sysevent_cmd[80];
+    int sysevent_bridge_mode = 0;
+
     syscfg_init();
     if (0 != GWP_SysCfgGetInt("bridge_mode"))
     {
         bridgeModeInBootup = 1;
     }
-  	bridge_mode = GWP_SysCfgGetInt("bridge_mode");
+    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
     eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
 
     sysevent_fd = sysevent_open("127.0.0.1", SE_SERVER_WELL_KNOWN_PORT, SE_VERSION, "gw_provevt", &sysevent_token);
@@ -1297,37 +1329,37 @@ static int GWP_act_ProvEntry()
         GWPROV_PRINT(" Creating Thread  GWP_sysevent_threadfunc \n"); 
         pthread_create(&sysevent_tid, NULL, GWP_sysevent_threadfunc, NULL);
     }
-   memset(buf,0,sizeof(buf));
+    memset(buf,0,sizeof(buf));
 
-   if (0 == access( "/nvram/ETHWAN_ENABLE" , F_OK ))
-   {
-       if (syscfg_get(NULL, "eth_wan_enabled", buf, sizeof(buf)) == 0)
-       {
-           rc = strcmp_s("false",strlen("false"),buf,&ind);
-           ERR_CHK(rc);
+    if (0 == access( "/nvram/ETHWAN_ENABLE" , F_OK ))
+    {
+        if (syscfg_get(NULL, "eth_wan_enabled", buf, sizeof(buf)) == 0)
+        {
+            rc = strcmp_s("false",strlen("false"),buf,&ind);
+            ERR_CHK(rc);
 
-           if((ind==0) && (rc == EOK))
-           {
-               if (syscfg_set(NULL, "eth_wan_enabled", "true") != 0)
-               {
-                   GWPROV_PRINT("eth_wan_enabled syscfg failed\n");
-               }
-               else
-               {
-                   if (syscfg_commit() != 0)
-                   {
-                       GWPROV_PRINT("eth_wan_enabled syscfg_commit\n");
+            if((ind==0) && (rc == EOK))
+            {
+                if (syscfg_set(NULL, "eth_wan_enabled", "true") != 0)
+                {
+                    GWPROV_PRINT("eth_wan_enabled syscfg failed\n");
+                }
+                else
+                {
+                    if (syscfg_commit() != 0)
+                    {
+                        GWPROV_PRINT("eth_wan_enabled syscfg_commit\n");
 
-                   }
-               }
-           }
-       }
-       v_secure_system("syscfg set last_wan_mode 1"); // to handle Factory reset case (1 = Ethwan mode)
-       v_secure_system("syscfg set curr_wan_mode 1"); // to handle Factory reset case (1 = Ethwan mode)
-       ethwan_enabled = 1;
-   }
-    
-  //Get the ethwan interface name from HAL
+                    }
+                }
+            }
+        }
+        v_secure_system("syscfg set last_wan_mode 1"); // to handle Factory reset case (1 = Ethwan mode)
+        v_secure_system("syscfg set curr_wan_mode 1"); // to handle Factory reset case (1 = Ethwan mode)
+        ethwan_enabled = 1;
+    }
+
+    //Get the ethwan interface name from HAL
     memset( ethwan_ifname , 0, sizeof( ethwan_ifname ) );
 
     if ( (0 != GWP_GetEthWanInterfaceName(ethwan_ifname, sizeof(ethwan_ifname)))
@@ -1342,49 +1374,29 @@ static int GWP_act_ProvEntry()
         GWPROV_PRINT(" Failed to get EthWanInterfaceName: %s \n", ethwan_ifname );
     }
 
-        GWPROV_PRINT(" EthWanInterfaceName: %s \n", ethwan_ifname );
+    GWPROV_PRINT(" EthWanInterfaceName: %s \n", ethwan_ifname );
 
-        #if defined (_BRIDGE_UTILS_BIN_)
-            if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
-            {
-                GWPROV_PRINT( "syscfg_set failed for eth_wan_iface_name\n" );
-            }
-            else
-            {
-                if ( syscfg_commit() != 0 )
-                {
-                    GWPROV_PRINT( "syscfg_commit failed for eth_wan_iface_name\n" );
-                }
-
-            }
-        #endif
-
-
-    if (ethwan_enabled)
+#if defined (_BRIDGE_UTILS_BIN_)
+    if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
     {
-        char sysevent_cmd[80];
-        int sysevent_bridge_mode = 0;
-        validate_mode(&bridge_mode);
-        sysevent_bridge_mode = getSyseventBridgeMode(eRouterMode, bridge_mode);
-        active_mode = sysevent_bridge_mode;
-        snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", sysevent_bridge_mode);
-        v_secure_system("sysevent set bridge_mode %d", sysevent_bridge_mode);
+        GWPROV_PRINT( "syscfg_set failed for eth_wan_iface_name\n" );
     }
     else
     {
-#if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_MIPS_) && !defined(_COSA_BCM_ARM_)
-   int sysevent_bridge_mode = 0;
-    bridge_mode = GWP_SysCfgGetInt("bridge_mode");
-    eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
+        if ( syscfg_commit() != 0 )
+        {
+            GWPROV_PRINT( "syscfg_commit failed for eth_wan_iface_name\n" );
+        }
 
-    
+    }
+#endif
+
+    validate_mode(&bridge_mode);
     sysevent_bridge_mode = getSyseventBridgeMode(eRouterMode, bridge_mode);
     active_mode = sysevent_bridge_mode;
-	GWPROV_PRINT(" active_mode %d \n", active_mode);
-#else
-	printf("Non-XB3 case bridge_mode and eRouterMode are already initialized\n");
-#endif
-    }
+    snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", sysevent_bridge_mode);
+    v_secure_system("sysevent set bridge_mode %d", sysevent_bridge_mode);
+
     return 0;
 }
 
