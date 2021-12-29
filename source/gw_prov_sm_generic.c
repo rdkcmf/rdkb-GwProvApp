@@ -1333,9 +1333,6 @@ void GWP_Util_get_shell_output( char * cmd, char *out, int len )
 **************************************************************************/
 static int GWP_act_ProvEntry()
 {
-#ifdef MULTILAN_FEATURE
-    macaddr_t macAddr;
-#endif
     unsigned char buf[64];
     errno_t rc       = -1;
     int     ind      = -1;
