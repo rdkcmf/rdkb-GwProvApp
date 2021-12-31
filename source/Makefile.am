@@ -16,31 +16,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ##########################################################################
-AM_CFLAGS = -D_ANSC_LINUX
-AM_CFLAGS += -D_ANSC_USER
-AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_
+AM_CFLAGS =
 AM_CFLAGS += -DCONFIG_PRIMARY_NET_BRIDGE_MODE
-AM_LDFLAGS = -lsyscfg -lulog -lsysevent
-if !PLATFORM_RASPBERRYPI_ENABLED
-if !FEATURE_RDKB_WAN_MANAGER
-if !PLATFORM_PUMA7_ENABLED
-AM_LDFLAGS += -lgwprovappabs
-endif
-endif
-endif
 
 ACLOCAL_AMFLAGS = -I m4
 
 bin_PROGRAMS = gw_prov_utopia
 
-gw_prov_utopia_CPPFLAGS = -I/var/tmp/pc-rdkb/include $(CPPFLAGS) -I$(srcdir)/include -I${PKG_CONFIG_SYSROOT_DIR}/$(includedir)/ruli/
 if FEATURE_RDKB_WAN_MANAGER
 gw_prov_utopia_SOURCES = gw_prov_sm_generic.c
 else
 gw_prov_utopia_SOURCES = gw_prov_sm.c autowan.c
 endif
 
-gw_prov_utopia_LDFLAGS = -lsysevent -lsyscfg -lulog -lsecure_wrapper -ltelemetry_msgsender
+gw_prov_utopia_CPPFLAGS = -I$(srcdir)/include
+gw_prov_utopia_CPPFLAGS += -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/ccsp -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/dbus-1.0 -I${PKG_CONFIG_SYSROOT_DIR}$(libdir)/dbus-1.0/include
+
+gw_prov_utopia_LDFLAGS = -lsysevent -lsyscfg -lulog -lsecure_wrapper -ltelemetry_msgsender -lpthread
 
 if !PLATFORM_RASPBERRYPI_ENABLED
 if !FEATURE_RDKB_WAN_MANAGER
@@ -51,9 +43,8 @@ endif
 endif
 
 if FEATURE_RDKB_WAN_MANAGER
-gw_prov_utopia_LDFLAGS +=  -lhal_ethsw
+gw_prov_utopia_LDFLAGS += -lhal_ethsw
 endif
-gw_prov_utopia_CPPFLAGS += -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/ccsp -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/dbus-1.0 -I${PKG_CONFIG_SYSROOT_DIR}$(libdir)/dbus-1.0/include
 
 if WITH_GTEST_SUPPORT
 SUBDIRS = test
