@@ -1461,11 +1461,8 @@ static int GWP_act_ProvEntry()
     return 0;
 }
 
-static void LAN_start() {
-#ifdef RDKB_DSLITE
-    char _4_to_6_status[2]={0};
-    int dslite_enable=0;
-#endif
+static void LAN_start(void)
+{
     GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
 
 #if defined (_PROPOSED_BUG_FIX_)
@@ -1492,14 +1489,15 @@ static void LAN_start() {
         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge-start", "", 0);
     }
     
-#ifdef RDKB_DSLITE
-/* Check if 4_to_6 tunnel support is enabled */
-    syscfg_get(NULL, "4_to_6_enabled", _4_to_6_status, sizeof(_4_to_6_status));
-    dslite_enable = atoi(_4_to_6_status);
-    if (dslite_enable == 1)
+#ifdef DSLITE_FEATURE_SUPPORT
     {
-        GWPROV_PRINT(" Setting dslite_enabled event \n");
-        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "dslite_enabled", "1", 0);
+        char buf[2];
+
+        if ((syscfg_get(NULL, "4_to_6_enabled", buf, sizeof(buf)) == 0) && (strcmp(buf, "1") == 0))
+        {
+            GWPROV_PRINT("Setting dslite_enabled event\n");
+            sysevent_set(sysevent_fd_gs, sysevent_token_gs, "dslite_enabled", "1", 0);
+        }
     }
 #endif
 
