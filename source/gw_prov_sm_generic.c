@@ -226,6 +226,14 @@ typedef enum {
     GWP_THREAD_ERROR
 } eGwpThreadType;
 
+typedef enum WanMode
+{
+    WAN_MODE_AUTO = 0,
+    WAN_MODE_ETH,
+    WAN_MODE_DOCSIS,
+    WAN_MODE_UNKNOWN
+}WanMode_t;
+
 typedef struct
 {
     char         *msgStr; 
@@ -1356,7 +1364,37 @@ static int GWP_act_ProvEntry()
         }
         v_secure_system("syscfg set last_wan_mode 1"); // to handle Factory reset case (1 = Ethwan mode)
         v_secure_system("syscfg set curr_wan_mode 1"); // to handle Factory reset case (1 = Ethwan mode)
+        v_secure_system("syscfg commit");
         ethwan_enabled = 1;
+    }
+    else
+    {
+        int lastKnownWanMode = WAN_MODE_UNKNOWN; 
+        memset(buf,0,sizeof(buf));
+        if (syscfg_get(NULL, "last_wan_mode", buf, sizeof(buf)) == 0)
+        {
+            lastKnownWanMode = atoi(buf);
+        }
+        // Last known wan mode is ethernet but nvram file not available
+        // so updating here last known mode as UNKNOWN and wan manager will search docsis wan first.
+        if (WAN_MODE_ETH == lastKnownWanMode)
+        {
+            GWPROV_PRINT("last wan mode is ethernet but nvram file not available !\n");
+            GWPROV_PRINT("Update last wan mode as unknown\n");
+            snprintf(buf, sizeof(buf), "%d", WAN_MODE_UNKNOWN);
+            if (syscfg_set(NULL, "last_wan_mode", buf) != 0)
+            {
+                GWPROV_PRINT("last_wan_mode syscfg failed\n");
+            }
+            else
+            {
+                if (syscfg_commit() != 0)
+                {
+                    GWPROV_PRINT("last_wan_mode syscfg_commit\n");
+
+                }
+            }
+        }
     }
 
     //Get the ethwan interface name from HAL
