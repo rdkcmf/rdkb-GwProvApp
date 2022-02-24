@@ -172,7 +172,9 @@ char log_buff[1024];
 #define ETHWAN_FILE     "/nvram/ETHWAN_ENABLE"
 #endif
 
-void _get_shell_output(FILE *fp, char * buf, int len);
+#if defined(_XB6_PRODUCT_REQ_) || defined(_CBR2_PRODUCT_REQ_)
+static void _get_shell_output (FILE *fp, char *buf, int len);
+#endif
 
 static Tr69TlvData *tlvObject=NULL;
 static int objFlag = 1;
@@ -2063,7 +2065,7 @@ static void *GWP_sysevent_threadfunc(void *data)
 					{
 						/*Check NotifyWifiChanges is true to make sure device in captive portal*/
 						FILE *fp;
-						char buf[256] = {0};
+						char buf[256];
 						fp = v_secure_popen("r", "psmcli get eRT.com.cisco.spvtg.ccsp.Device.WiFi.NotifyWiFiChanges");
 						_get_shell_output(fp, buf, sizeof(buf));
 						rc = strcmp_s("true", strlen("true"),buf, &ind);
@@ -3369,22 +3371,30 @@ static void LAN_start(void)
     return;
 }
 
-void _get_shell_output(FILE *fp, char *buf, int len)
+#if defined(_XB6_PRODUCT_REQ_) || defined(_CBR2_PRODUCT_REQ_)
+static void _get_shell_output (FILE *fp, char *buf, int len)
 {
-    char * p;
-
-    if (fp)
+    if (fp == NULL)
     {
-        if(fgets (buf, len-1, fp) != NULL)
+        *buf = 0;
+        return;
+    }
+
+    buf = fgets (buf, len, fp);
+
+    v_secure_pclose (fp); 
+
+    if (buf != NULL)
+    {
+        len = strlen (buf);
+
+        if ((len > 0) && (buf[len - 1] == '\n'))
         {
-            buf[len-1] = '\0';
-            if ((p = strchr(buf, '\n'))) {
-                *p = '\0';
-            }
+            buf[len - 1] = 0;
         }
-    v_secure_pclose(fp);
     }
 }
+#endif
 
 /**************************************************************************/
 /*! \fn int main(int argc, char *argv)
