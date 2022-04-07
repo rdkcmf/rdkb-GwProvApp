@@ -854,7 +854,7 @@ static void *GWP_sysevent_threadfunc(void *data)
         FILE *responsefd=NULL;
         char *networkResponse = "/var/tmp/networkresponse.txt";
         int iresCode = 0 , iRet = 0;
-        char responseCode[10]={0}, cp_enable[10]={0}, redirect_flag[10]={0};
+        char responseCode[10]={0}, cp_enable[10]={0}, redirect_flag[10]={0}, currentWanInterface[10]={0}, defaultWanInterface[10]={0};
 #endif
         err = sysevent_getnotification(sysevent_fd, sysevent_token, name, &namelen,  val, &vallen, &getnotification_asyncid);
 
@@ -1026,12 +1026,29 @@ static void *GWP_sysevent_threadfunc(void *data)
                     ERR_CHK(rc);
                     if ((ind == 0) && (rc == EOK))
                     {
-                        // Set LED state based on whether device is in CP or not
+                        //get default wan interface
+                        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "wan_ifname", defaultWanInterface, sizeof(defaultWanInterface));
+                        GWPROV_PRINT("Default wan interface: '%s'.\n", defaultWanInterface);
+                        //check whether current wan interface is LTE or not
+                        sysevent_get(sysevent_fd_gs, sysevent_token_gs, "current_wan_ifname", currentWanInterface, sizeof(currentWanInterface));
+                        GWPROV_PRINT("Current wan interface: '%s'.\n", currentWanInterface);
 
-                        ledMgmt.LedColor = WHITE;
-
-                        ledMgmt.State  = SOLID;
-                        ledMgmt.Interval = 0;
+                        rc = strcmp_s(defaultWanInterface, strlen(defaultWanInterface),currentWanInterface, &ind);
+                        ERR_CHK(rc);
+                        if ((ind == 0) && (rc == EOK))
+                        {
+                          // Set LED if the current wan interface is not LTE
+                          // Set LED state based on whether device is in CP or not
+                          GWPROV_PRINT("Current wan interface is default one.\n");
+                          GWPROV_PRINT("Setting LED: SOLID WHITE\n");
+                          ledMgmt.LedColor = WHITE;
+                          ledMgmt.State  = SOLID;
+                          ledMgmt.Interval = 0;
+                        }
+                        else {
+                          GWPROV_PRINT("Current wan interface is not default one.\n");
+                        }
+                        
 
                         iRet = syscfg_get(NULL, "CaptivePortal_Enable", cp_enable, sizeof(cp_enable));
 
