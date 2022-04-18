@@ -978,7 +978,10 @@ static TlvParseCallbackStatusExtIf_e GW_setTopologyMode(Uint8 type, Uint16 lengt
     if ( (tpMode == TLV202_42_FAVOR_DEPTH) || (tpMode == TLV202_42_FAVOR_WIDTH))
     {
         printf("eSafe CFG file : Found Topology Mode, val %d\n", tpMode);
-        v_secure_system("sysevent set erouter_topology-mode %d", tpMode);
+        if(tpMode == TLV202_42_FAVOR_DEPTH)
+            sysevent_set(sysevent_fd_gs, sysevent_token_gs, "erouter_topology-mode", "1", 0);
+        else
+            sysevent_set(sysevent_fd_gs, sysevent_token_gs, "erouter_topology-mode", "2", 0);
     }
     else
     {
@@ -1189,7 +1192,7 @@ static void GWP_EnterRouterMode(void)
 //     DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_IN_PROGRESS);
 
 //    bridge_mode = 0;
-        v_secure_system("sysevent set bridge_mode %d", BRMODE_ROUTER);
+        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge_mode", "0", 0);
 	syscfg_get(NULL, "MoCA_previous_status", MocaPreviousStatus, sizeof(MocaPreviousStatus));
 	prev = atoi(MocaPreviousStatus);
 	GWPROV_PRINT(" MocaPreviousStatus = %d \n", prev);
@@ -1204,7 +1207,7 @@ static void GWP_EnterRouterMode(void)
 
     v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
     
-    v_secure_system("sysevent set forwarding-restart");
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "forwarding-restart", "", 0);
 }
 
 /**************************************************************************/
@@ -1247,6 +1250,7 @@ static void GWP_EnterBridgeMode(void)
     // GSWT_ResetSwitch();
     //DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_NOT_INITIATED);
 	char MocaStatus[16]  = {0};
+        char BridgeMode[2] = {0};
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
 	syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
 	GWPROV_PRINT(" MoCA_current_status = %s \n", MocaStatus);
@@ -1262,10 +1266,11 @@ static void GWP_EnterBridgeMode(void)
 	    }
 	}
     v_secure_system("dmcli eRT setv Device.MoCA.Interface.1.Enable bool false");
-    v_secure_system("sysevent set bridge_mode %d", active_mode);
+    snprintf(BridgeMode, sizeof(BridgeMode), "%d", active_mode);
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge_mode", BridgeMode, 0);
     v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
     
-    v_secure_system("sysevent set forwarding-restart");
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "forwarding-restart", "", 0);
 }
 
 #if 0
@@ -1298,9 +1303,9 @@ char MocaStatus[16] = {0};
 	}	
 	
     v_secure_system("dmcli eRT setv Device.MoCA.Interface.1.Enable bool false");
-    v_secure_system("sysevent set bridge_mode %d", BRMODE_PRIMARY_BRIDGE);
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge_mode", "3", 0);
     v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
-    v_secure_system("sysevent set forwarding-restart");
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "forwarding-restart", "", 0);
 }
 #endif
 
@@ -1380,7 +1385,7 @@ static void GWP_UpdateERouterMode(void)
 #endif
                 if(!once)
                     check_lan_wan_ready();
-                v_secure_system("sysevent set erouter_mode-updated");
+                sysevent_set(sysevent_fd_gs, sysevent_token_gs, "erouter_mode-updated", "", 0);
             }
         }
     }
@@ -2306,7 +2311,6 @@ static int GWP_act_DocsisLinkDown_callback_1()
     phylink_wan_state = 0;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "phylink_wan_state", "down", 0);
-   
     printf("\n**************************\n");
     printf("\nsysevent set phylink_wan_state down\n");
     printf("\n**************************\n\n");
@@ -2325,7 +2329,7 @@ static int GWP_act_DocsisLinkDown_callback_2()
            otherwise the sysevent tr_erouter0_dhcpv6_client_v6addr won't
            be triggered if the erouter0 get the same IPv6 address when link up.
            The DSLite also need to be stopped when link down, and will be started when link up*/
-           v_secure_system("sysevent set tr_erouter0_dhcpv6_client_v6addr");
+           sysevent_set(sysevent_fd_gs, sysevent_token_gs, "tr_erouter0_dhcpv6_client_v6addr", "", 0);
            /*Clear the IPv6 rules that maybe block the DHCPv6 response when link up, those rules will
            be updated once erouter got the IPv6 address*/
            sysevent_set(sysevent_fd_gs, sysevent_token_gs, "firewall-restart", "",0);
@@ -2334,9 +2338,9 @@ static int GWP_act_DocsisLinkDown_callback_2()
        printf("Stopping wan service\n");
        GWPROV_PRINT(" Stopping wan service\n");
        t2_event_d("RF_ERROR_WAN_stop", 1);
-       v_secure_system("sysevent set wan-stop");
+       sysevent_set(sysevent_fd_gs, sysevent_token_gs, "wan-stop", "", 0);
    #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
-       v_secure_system("sysevent set dhcpv6_client-stop");
+       sysevent_set(sysevent_fd_gs, sysevent_token_gs, "dhcpv6_client-stop", "", 0);
    #endif
     }
 
@@ -2390,12 +2394,13 @@ static int GWP_act_DocsisLinkUp_callback()
     if (eRouterMode != DOCESAFE_ENABLE_DISABLE_extIf /*&& bridge_mode == 0*/) // mipieper - pseduo bridge support
     {
         printf("Starting wan service\n");
-        v_secure_system("sysevent set wan-start ; sysevent set sshd-restart");
+        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "wan-start", "", 0);
+        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "sshd-restart", "", 0);
         sleep(50);
-        v_secure_system("sysevent set current_ipv4_link_state up");
+        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "current_ipv4_link_state", "up", 0);
         v_secure_system("sysevent set ipv4_wan_ipaddr `ifconfig erouter0 | grep 'inet addr' | cut -d':' -f2 | awk '{print$1}'`");
         v_secure_system("sysevent set ipv4_wan_subnet `ifconfig erouter0 | grep 'inet addr' | cut -d':' -f4 | awk '{print$1}'`");
-        v_secure_system("sysevent set wan_service-status started");
+        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "wan_service-status", "started", 0);
         v_secure_system("sysevent set bridge_mode `syscfg get bridge_mode`");
     }
     if(buff != NULL)
@@ -2723,7 +2728,7 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
        goto gimReply;
     }
 
-    v_secure_system("sysevent set docsis_cfg_file %s", cfgFileName);
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "docsis_cfg_file", cfgFileName, 0);
 
     printf("sysevent set docsis_cfg_file %s\n", cfgFileName);
 
@@ -2792,7 +2797,8 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
 #if defined (INTEL_PUMA7)
     //Intel Proposed RDKB Generic Bug Fix from XB6 SDK  
     //Notifying the CcspPandM and CcspTr069 module that the TLV parsing is successful and done
-    v_secure_system("sysevent set TLV202-status success");
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "TLV202-status", "success", 0);
+
 #endif
 
 closeFile:
@@ -2926,6 +2932,7 @@ static int GWP_act_DocsisInited_callback()
     Uint8 lladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ] = {0};
     Uint8 soladdr[ NETUTILS_IPv6_GLOBAL_ADDR_LEN / sizeof(Uint8) ] = {0};
     char soladdrKey[64] = { 0 };
+    char BridgeMode[2] = {0};
     /* Coverity Issue Fix - CID:73933 : UnInitialised variable */
     char soladdrStr[64] = {0};
     GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
@@ -2983,7 +2990,8 @@ static int GWP_act_DocsisInited_callback()
     sysevent_bridge_mode = getSyseventBridgeMode(eRouterMode, bridge_mode);
     active_mode = sysevent_bridge_mode;
 	GWPROV_PRINT(" active_mode %d \n", active_mode);
-    v_secure_system("sysevent set bridge_mode %d", sysevent_bridge_mode);
+    snprintf(BridgeMode, sizeof(BridgeMode), "%d", sysevent_bridge_mode);
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge_mode", BridgeMode, 0);
 #endif
   
 #if !defined(_PLATFORM_RASPBERRYPI_)
@@ -3002,7 +3010,7 @@ static int GWP_act_DocsisInited_callback()
     }
 #endif
 
-      v_secure_system("sysevent set docsis-initialized 1");
+      sysevent_set(sysevent_fd_gs, sysevent_token_gs, "docsis-initialized", "1", 0);
 #if !defined(_PLATFORM_RASPBERRYPI_)
 
     /* Must set the ESAFE Enable state before replying to the DocsisInit event */
@@ -3093,6 +3101,7 @@ static int GWP_act_DocsisInited_callback()
 **************************************************************************/
 static int GWP_act_ProvEntry_callback()
 {
+    char BridgeMode[2] = {0};
 #if defined(_PLATFORM_RASPBERRYPI_)
     int uid = 0;
     uid = getuid();
@@ -3122,13 +3131,16 @@ static int GWP_act_ProvEntry_callback()
     }
 #else
     v_secure_system("mkdir -p /nvram");
-    v_secure_system("rm -f /nvram/dnsmasq.leases");
+    remove("/nvram/dnsmasq.leases");
     v_secure_system("syslogd -f /etc/syslog.conf");
 
     //copy files that are needed by CCSP modules
     v_secure_system("cp /usr/ccsp/ccsp_msg.cfg /tmp");
-    v_secure_system("touch /tmp/cp_subsys_ert");
-
+    FILE * file = fopen("/tmp/cp_subsys_ert", "wb");
+    if (file != NULL)
+        fclose(file);
+    else
+        printf("File /tmp/cp_subsys_ert cannot be created\n");
     /* Below link is created because crond is expecting /crontabs/ dir instead of /var/spool/cron/crontabs */
     v_secure_system("ln -s /var/spool/cron/crontabs /");
     /* directory /var/run/firewall because crond is expecting this dir to execute time specific blocking of firewall*/
@@ -3180,7 +3192,7 @@ if( uid == 0 )
 
     if (sysevent_fd >= 0)
     {
-        v_secure_system("sysevent set phylink_wan_state down");
+        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "phylink_wan_state", "down", 0);
         GWPROV_PRINT(" Creating Thread  GWP_sysevent_threadfunc \n"); 
         pthread_create(&sysevent_tid, NULL, GWP_sysevent_threadfunc, NULL);
     }
@@ -3235,8 +3247,8 @@ if ( uid == 0 )
 #else
 	printf("Non-XB3 case bridge_mode and eRouterMode are already initialized\n");
 #endif
-
-    v_secure_system("sysevent set bridge_mode %d", sysevent_bridge_mode);
+    snprintf(BridgeMode, sizeof(BridgeMode), "%d", sysevent_bridge_mode);
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge_mode", BridgeMode, 0);
 
     /* Now that we have the ICC que (SME) and we are registered on the docsis INIT    */
     /* event, we can notify PCD to continue                                           */

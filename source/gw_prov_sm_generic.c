@@ -467,6 +467,7 @@ static void GWPEthWan_EnterBridgeMode(void)
     // GSWT_ResetSwitch();
     //DOCSIS_ESAFE_SetEsafeProvisioningStatusProgress(DOCSIS_EROUTER_INTERFACE, ESAFE_PROV_STATE_NOT_INITIATED);
     char MocaStatus[16]  = {0};
+    char BridgeMode[2] = {0};
     GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     syscfg_get(NULL, "MoCA_current_status", MocaStatus, sizeof(MocaStatus));
     GWPROV_PRINT(" MoCA_current_status = %s \n", MocaStatus);
@@ -482,10 +483,11 @@ static void GWPEthWan_EnterBridgeMode(void)
         }
     }
     v_secure_system("ccsp_bus_client_tool eRT setv Device.MoCA.Interface.1.Enable bool false");
-    v_secure_system("sysevent set bridge_mode %d",active_mode);
+    snprintf(BridgeMode, sizeof(BridgeMode), "%d", active_mode);
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge_mode", BridgeMode, 0);
     v_secure_system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
 
-    v_secure_system("sysevent set forwarding-restart");
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "forwarding-restart", "", 0);
 }
 
 //Actually enter router mode
@@ -497,7 +499,7 @@ static void GWPEthWan_EnterRouterMode(void)
     GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
 
 //    bridge_mode = 0;
-    v_secure_system("sysevent set bridge_mode %d",BRMODE_ROUTER);
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge_mode", "0", 0);
 
     syscfg_get(NULL, "MoCA_previous_status", MocaPreviousStatus, sizeof(MocaPreviousStatus));
     prev = atoi(MocaPreviousStatus);
@@ -513,7 +515,7 @@ static void GWPEthWan_EnterRouterMode(void)
 
     v_secure_system("ccsp_bus_client_tool eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
 
-    v_secure_system("sysevent set forwarding-restart");
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "forwarding-restart", "", 0);
 }
 
 static void UpdateActiveDeviceMode()
@@ -908,7 +910,7 @@ static void *GWP_sysevent_threadfunc(void *data)
                     ERR_CHK(rc);
                     if ((ind == 0) && (rc == EOK))
                     {
-                        v_secure_system("sysevent set sshd-restart");
+                        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "sshd-restart", "", 0);
 
                     }
                 }
@@ -918,7 +920,7 @@ static void *GWP_sysevent_threadfunc(void *data)
                 if (ethwan_enabled)
                 {
                     GWPROV_PRINT("ntp time syncd, need to restart sshd %s\n", name);
-                    v_secure_system("sysevent set sshd-restart");
+                    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "sshd-restart", "", 0);
                 }
             }
             else if (ret_value == FIREWALL_RESTART)            
@@ -1253,8 +1255,12 @@ static void *GWP_sysevent_threadfunc(void *data)
                       if ((0 == ind) && (rc == EOK))
                       {
                           v_secure_system("sysctl -w net.ipv6.conf.%s.disable_ipv6=1", ethwan_ifname);
-                          v_secure_system("touch /tmp/phylink_wan_state_up");
-                          v_secure_system("sysevent set sshd-restart");
+                          FILE * file = fopen("/tmp/phylink_wan_state_up", "wb");
+                          if (file != NULL)
+                              fclose(file);
+                          else
+                              printf("File /tmp/phylink_wan_state_up cannot be created\n");
+                          sysevent_set(sysevent_fd_gs, sysevent_token_gs, "sshd-restart", "", 0);
                       }
                   }
               }
@@ -1317,6 +1323,7 @@ static int GWP_act_ProvEntry()
     errno_t rc       = -1;
     int     ind      = -1;
     char sysevent_cmd[80];
+    char BridgeMode[2] = {0};
     int sysevent_bridge_mode = 0;
 
     syscfg_init();
@@ -1431,7 +1438,8 @@ static int GWP_act_ProvEntry()
     sysevent_bridge_mode = getSyseventBridgeMode(eRouterMode, bridge_mode);
     active_mode = sysevent_bridge_mode;
     snprintf(sysevent_cmd, sizeof(sysevent_cmd), "sysevent set bridge_mode %d", sysevent_bridge_mode);
-    v_secure_system("sysevent set bridge_mode %d", sysevent_bridge_mode);
+    snprintf(BridgeMode, sizeof(BridgeMode), "%d", sysevent_bridge_mode);
+    sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge_mode", BridgeMode, 0);
 
     return 0;
 }
@@ -1536,7 +1544,6 @@ pid_t findProcessId(char* processName)
 
     return pid;
 }
-
 /**************************************************************************/
 /*! \fn int main(int argc, char *argv)
  **************************************************************************

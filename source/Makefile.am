@@ -38,7 +38,7 @@ else
 gw_prov_utopia_SOURCES = gw_prov_sm.c autowan.c
 endif
 
-gw_prov_utopia_LDFLAGS = -lsysevent -lsyscfg -lulog -lsecure_wrapper
+gw_prov_utopia_LDFLAGS = -lsysevent -lsyscfg -lulog -lsecure_wrapper -ltelemetry_msgsender
 
 if !PLATFORM_RASPBERRYPI_ENABLED
 if !FEATURE_RDKB_WAN_MANAGER
