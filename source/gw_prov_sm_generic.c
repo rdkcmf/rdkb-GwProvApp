@@ -1564,9 +1564,11 @@ int main(int argc, char *argv[])
        rdk_logger_init(DEBUG_INI_NAME);
     #endif
 
+#ifndef _WNXL11BWL_PRODUCT_REQ_
     GWPROV_PRINT(" Entry gw_prov_utopia\n");
     GWPROV_PRINT(" Calling /etc/utopia/utopia_init.sh \n");
     v_secure_system("/etc/utopia/utopia_init.sh");
+#endif
 
     GWP_act_ProvEntry();
     GWPROV_PRINT("wait in loop \n");
