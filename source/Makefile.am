@@ -23,7 +23,9 @@ AM_CFLAGS += -DCONFIG_PRIMARY_NET_BRIDGE_MODE
 AM_LDFLAGS = -lsyscfg -lulog -lsysevent
 if !PLATFORM_RASPBERRYPI_ENABLED
 if !FEATURE_RDKB_WAN_MANAGER
+if !PLATFORM_PUMA7_ENABLED
 AM_LDFLAGS += -lgwprovappabs
+endif
 endif
 endif
 
@@ -42,7 +44,9 @@ gw_prov_utopia_LDFLAGS = -lsysevent -lsyscfg -lulog -lsecure_wrapper -ltelemetry
 
 if !PLATFORM_RASPBERRYPI_ENABLED
 if !FEATURE_RDKB_WAN_MANAGER
+if !PLATFORM_PUMA7_ENABLED
 gw_prov_utopia_LDFLAGS += -lgwprovappabs
+endif
 endif
 endif
 

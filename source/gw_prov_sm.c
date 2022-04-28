@@ -70,16 +70,24 @@
 #include <pthread.h>
 #include "gw_prov_abstraction.h"
 #include <Tr69_Tlv.h>
+#if !defined (_COSA_BCM_ARM_)
 #include <autoconf.h>
+#endif
 #ifdef AUTOWAN_ENABLE
 #include "autowan.h"
 #include "gw_prov_sm.h"
 #endif
 #if !defined(_PLATFORM_RASPBERRYPI_)
+#if !defined (_COSA_BCM_ARM_)
 #include "docsis_esafe_db.h"
+#endif
 #endif
 #include <time.h>
 #include "secure_wrapper.h"
+#if defined (_COSA_BCM_ARM_)
+#include <sys/sysinfo.h>
+#include <sys/time.h>
+#endif
 #ifdef FEATURE_SUPPORT_RDKLOG
 #include "rdk_debug.h"
 #endif
@@ -96,6 +104,15 @@
 #define PORT 8081
 #endif
 
+#if defined (_COSA_BCM_ARM_)
+#ifdef FEATURE_SUPPORT_ONBOARD_LOGGING
+#define LOGGING_MODULE           "GWPROV"
+#define OnboardLog(...)          rdk_log_onboard(LOGGING_MODULE, __VA_ARGS__)
+#else
+#define OnboardLog(...)
+#endif
+#endif
+
 #define WHITE	0
 #define RED	3
 #define SOLID	0
@@ -105,7 +122,9 @@
 /*      DEFINES:                                                          */
 /**************************************************************************/
 
+#if !defined (_COSA_BCM_ARM_)
 #define ERNETDEV_MODULE "/fss/gw/lib/modules/3.12.14/drivers/net/erouter_ni.ko"
+#endif
 #define NETUTILS_IPv6_GLOBAL_ADDR_LEN     	 128
 #define ER_NETDEVNAME "erouter0"
 #define IFNAME_WAN_0    "wan0"
@@ -906,7 +925,9 @@ static STATUS GW_UpdateTr069Cfg(void)
     /*Send TLV11 data to SNMP Agent*/
     if(Snmp_Tlv11BufLen)
     {
+#if !defined (_COSA_BCM_ARM_)
         ret = sendTLV11toSnmpAgent((void *)Snmp_Tlv11Buf, (int)Snmp_Tlv11BufLen );
+#endif
         
     }
 
@@ -1052,21 +1073,21 @@ static STATUS GWP_UpdateEsafeAdminMode(DOCSIS_Esafe_Db_extIf_e enableMode)
 }
 
 /**************************************************************************/
-/*! \fn Bool GWP_IsGwEnabled(void)
+/*! \fn int GWP_IsGwEnabled(void)
  **************************************************************************
  *  \brief Is gw enabled
  *  \return True/False
 **************************************************************************/
-static Bool GWP_IsGwEnabled(void)
+static int GWP_IsGwEnabled(void)
 {
-    
+
     if (eRouterMode == DOCESAFE_ENABLE_DISABLE_extIf)
     {
-        return False;
+        return FALSE;
     }
     else
     {
-        return True;
+        return TRUE;
     }
 }
 #endif
@@ -1099,6 +1120,22 @@ void docsis_gotEnable_callback(Uint8 state)
    eRouterMode = state;
 
 }
+
+#if defined(INTEL_PUMA7)
+/**************************************************************************/
+/*! \fn void docsis_GetRATransInterval_callback(Uint16 raTransInterval)
+ **************************************************************************
+ *  \brief Get Router Advertisement Transfer Interval Time
+ *  \param[in] raTransInterval - Value
+ *  \return None
+**************************************************************************/
+void docsis_GetRATransInterval_callback(Uint16 raTransInterval)
+{
+    int radv_trans_interval = raTransInterval;
+    GWP_SysCfgSetInt("ra_interval", radv_trans_interval);  // save the Router Advertisement Transfer Interval Time
+}
+#endif
+
 /**************************************************************************/
 /*! \fn void GWP_DocsisInited(void)
  **************************************************************************
@@ -1129,10 +1166,11 @@ static void GWP_DocsisInited(void)
     eSafeDevice_SetProvisioningStatusProgress(ESAFE_PROV_STATE_NOT_INITIATED_extIf);
 	
      /* Add paths */
-     
+     #if !defined (_COSA_BCM_ARM_)
      eSafeDevice_AddeRouterPhysicalNetworkInterface(IFNAME_ETH_0, True);
            
      eSafeDevice_AddeRouterPhysicalNetworkInterface("usb0",True);
+     #endif
 
 #if !defined(INTEL_PUMA7) && !defined(_COSA_BCM_ARM_)
     /* Register on more events */
@@ -1206,6 +1244,9 @@ static void GWP_EnterRouterMode(void)
     v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool true");
     
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "forwarding-restart", "", 0);
+#if defined (_COSA_BCM_ARM_)
+    sendPseudoBridgeModeMessage(FALSE);
+#endif
 }
 
 /**************************************************************************/
@@ -1262,6 +1303,9 @@ static void GWP_EnterBridgeMode(void)
     v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
     
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "forwarding-restart", "", 0);
+#if defined (_COSA_BCM_ARM_)
+    sendPseudoBridgeModeMessage(TRUE);
+#endif
 }
 
 #if 0
@@ -1297,6 +1341,9 @@ char MocaStatus[16] = {0};
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "bridge_mode", "3", 0);
     v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.ErouterEnable bool false");
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "forwarding-restart", "", 0);
+#if defined (_COSA_BCM_ARM_)
+    sendPseudoBridgeModeMessage(TRUE);
+#endif
 }
 #endif
 
@@ -1333,7 +1380,12 @@ static void GWP_UpdateERouterMode(void)
             v_secure_system("dmcli eRT setv Device.X_CISCO_COM_DeviceControl.LanManagementEntry.1.LanMode string bridge-static");
             
             GWP_DisableERouter();
-            
+#if defined (_XB6_PRODUCT_REQ_) && defined (_COSA_BCM_ARM_)
+            if(eRouterMode == DOCESAFE_ENABLE_NUM_ENABLE_TYPES_extIf) // If the mode is set to this value then changing it
+            {
+                   eRouterMode = DOCESAFE_ENABLE_IPv4_IPv6_extIf; // Changing to default mode
+            }
+#endif
             GWP_SysCfgSetInt("last_erouter_mode", eRouterMode);  // save the new mode only
               if (syscfg_commit() != 0) 
                     printf("syscfg_commit  for new mode failed\n");
@@ -1380,6 +1432,9 @@ static void GWP_UpdateERouterMode(void)
             }
         }
     }
+#if defined (_COSA_BCM_ARM_)
+    sendPseudoBridgeModeMessage((active_mode != BRMODE_ROUTER) ? TRUE : FALSE);
+#endif
 }
 
 /**************************************************************************/
@@ -1562,6 +1617,14 @@ static int GWP_ProcessIpv6Up(void)
         operMode = DOCESAFE_EROUTER_OPER_IPV4_IPV6_extIf;
         
     }
+#if defined (_XB6_PRODUCT_REQ_) && defined (_COSA_BCM_ARM_)
+    else if (operMode == DOCESAFE_EROUTER_OPER_IPV4_IPV6_extIf)
+    {
+               GWPROV_PRINT(" Retaining DOCESAFE_EROUTER_OPER_IPV4_IPV6_extIf mode\n");
+        /* Dual mode */
+               operMode=DOCESAFE_EROUTER_OPER_IPV4_IPV6_extIf;
+    }
+#endif
     else
     {
         /* Only v6 */
@@ -2137,7 +2200,7 @@ static void *GWP_sysevent_threadfunc(void *data)
                              GWP_DisableERouter();
                         }
                         v_secure_system("/bin/sh /etc/webgui.sh");
-#elif defined(_COSA_INTEL_XB3_ARM_) || defined(_CBR_PRODUCT_REQ_)
+#elif defined(_COSA_INTEL_XB3_ARM_) || defined(_CBR_PRODUCT_REQ_) || defined(INTEL_PUMA7)
                         // For other devices CcspWebUI.service launches the GUI processes
                         startWebUIProcess();
 #else
@@ -2187,6 +2250,10 @@ static void *GWP_sysevent_threadfunc(void *data)
                         printf("Not Calling hotspot-start for XB3,XB6 and CBR it will be done in \
 				cosa_start_rem.sh,hotspot.service and xfinity_hotspot_bridge_setup.sh respectively\n");
 #else
+#if defined (_COSA_BCM_ARM_)
+                        /* TCXB6-1922: Adding 5 seconds delay as sysevents are not getting handled properly */
+                        sleep(5);
+#endif
                         sysevent_set(sysevent_fd_gs, sysevent_token_gs, "hotspot-start", "", 0);
                         hotspot_started = 1 ;
 #endif
@@ -2309,6 +2376,9 @@ static int GWP_act_DocsisLinkDown_callback_1()
     phylink_wan_state = 0;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "phylink_wan_state", "down", 0);
+#if defined (_COSA_BCM_ARM_)
+    remove("/tmp/phylink_wan_state_up");
+#endif
     printf("\n**************************\n");
     printf("\nsysevent set phylink_wan_state down\n");
     printf("\n**************************\n\n");
@@ -2337,6 +2407,9 @@ static int GWP_act_DocsisLinkDown_callback_2()
        GWPROV_PRINT(" Stopping wan service\n");
        t2_event_d("RF_ERROR_WAN_stop", 1);
        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "wan-stop", "", 0);
+#if defined (_COSA_BCM_ARM_)
+       remove("/tmp/phylink_wan_state_up");
+#endif
    #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "dhcpv6_client-stop", "", 0);
    #endif
@@ -2345,12 +2418,48 @@ static int GWP_act_DocsisLinkDown_callback_2()
     return 0;
 }
 
+#if defined (_COSA_BCM_ARM_)
+static void get_dateanduptime(char *buffer, int *uptime)
+{
+    struct     timeval tv;
+    struct     tm *tm;
+    struct     sysinfo info;
+    char fmt[64], buf[64];
+
+    sysinfo( &info );
+    gettimeofday( &tv, NULL );
+
+    if( (tm = localtime( &tv.tv_sec ) ) != NULL)
+    {
+        strftime( fmt, sizeof( fmt ), "%y%m%d-%T.%%06u", tm );
+        snprintf( buf, sizeof( buf ), fmt, tv.tv_usec );
+    }
+    sprintf( buffer, "%s", buf);
+    *uptime = info.uptime;
+}
+
+static int logged_docsis_reg_complete_uptime = 0;
+#endif
 
 static int GWP_act_DocsisLinkUp_callback()
 {
+#if defined (_COSA_BCM_ARM_)
+    int uptime = 0;
+    char buffer[64] = {0};
+    FILE *fp = NULL;
+#endif
     phylink_wan_state = 1;
 	GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
     sysevent_set(sysevent_fd_gs, sysevent_token_gs, "phylink_wan_state", "up", 0);
+#if defined (_COSA_BCM_ARM_)
+    FILE * file= fopen("/tmp/phylink_wan_state_up", "wb");
+    if (file == NULL)
+    {
+        printf("File /tmp/phylink_wan_state_up cannot be created\n");
+        return -1;
+    }
+    fclose(file);
+#endif
     printf("\n**************************\n");
     printf("\nsysevent set phylink_wan_state up\n");
     printf("\n**************************\n\n");
@@ -2414,7 +2523,19 @@ static int GWP_act_DocsisLinkUp_callback()
 	sysevent_set(sysevent_fd_gs, sysevent_token_gs, "dhcpv6_client-start", "", 0);
     #endif
     }
-
+#if defined (_COSA_BCM_ARM_)
+    if (!logged_docsis_reg_complete_uptime)
+    {
+        logged_docsis_reg_complete_uptime = 1;
+        get_dateanduptime(buffer,&uptime);
+        if ((fp = fopen("/rdklogs/logs/Consolelog.txt.0", "a+")))
+        {
+            fprintf(fp,"%s Docsis_Reg_Complete:%d\n",buffer,uptime);
+            OnboardLog("Docsis_Reg_Complete:%d\n",uptime);
+            fclose(fp);
+        }
+    }
+#endif
 #endif
     return 0;
 }
@@ -2714,6 +2835,20 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
 
     oldRouterMode = eRouterMode;
 
+#if defined (_COSA_BCM_ARM_)
+#ifdef HEX_DEBUG
+       Uint32 i;
+       printf("\n");
+       for(i = 0; i < cfgFileBuffLen; i++)
+       {
+               printf("%02x", cfgFileBuff[i]);
+               if(((i+1) % 3) == 0) printf(" ");
+               if(((i+1) % 12) == 0) printf("\n");
+       }
+       printf("\n");
+#endif
+#endif
+
     if( cfgFile != NULL)
     {
       cfgFileName = cfgFile;
@@ -2788,6 +2923,12 @@ static int GWP_act_DocsisCfgfile_callback(Char* cfgFile)
     GWPROV_PRINT(" eSafe Config file \"%s\", parsed completed, status %d\n", cfgFileName, tlvStatus);
     //GW_UpdateTr069Cfg();
 
+#if defined (_COSA_BCM_ARM_)
+    GW_UpdateTr069Cfg();
+    //Try to update eRouterMode from esafe device
+    eSafeDevice_GetErouterOperationMode((esafeErouterOperModeExtIf_e *)&eRouterMode);
+#endif
+
 	//Start GWP_UpdateTr069CfgThread 
     GWPROV_PRINT("GWP_UpdateTr069CfgThread started\n");
 	pthread_create( &Updatetr069CfgThread, NULL, &GWP_UpdateTr069CfgThread, NULL );  
@@ -2839,13 +2980,17 @@ static int GWP_act_StartActiveUnprovisioned()
     printf("Starting ActiveUnprovisioned processes\n");
 
 #if !defined(INTEL_PUMA7)
+#if !defined (_COSA_BCM_ARM_)
     Char *cmdline;
+#endif
     /* Add paths for eRouter dev counters */
     printf("Adding PP paths\n");
+#if !defined (_COSA_BCM_ARM_)
     cmdline = "add "IFNAME_ETH_0" cni0 " ER_NETDEVNAME " in";
     COMMONUTILS_file_write("/proc/net/ti_pp_path", cmdline, strlen(cmdline));
     cmdline = "add cni0 "IFNAME_ETH_0" " ER_NETDEVNAME " out";
     COMMONUTILS_file_write("/proc/net/ti_pp_path", cmdline, strlen(cmdline));
+#endif
 #endif
 
     /*printf("Starting COSA services\n");
@@ -3027,8 +3172,15 @@ static int GWP_act_DocsisInited_callback()
     }
     else
     {
+#if !defined (_XB6_PRODUCT_REQ_) && !defined (_COSA_BCM_ARM_)
         /* At this point: enabled, but neither are provisioned (regardless of which is enabled) */
         operMode = DOCESAFE_EROUTER_OPER_NOIPV4_NOIPV6_extIf;
+#else
+         /* The eRouter MUST persist its initialization mode across reinitializations.So, assign last known mode*/
+       eRouterMode = GWP_SysCfgGetInt("last_erouter_mode");
+       GWPROV_PRINT(" eRouterMode = %d\n", eRouterMode);
+       operMode = eRouterMode;
+#endif
     }
         GWPROV_PRINT(" operMode = %d\n", operMode);
     eSafeDevice_SetErouterOperationMode(operMode);
@@ -3039,7 +3191,11 @@ static int GWP_act_DocsisInited_callback()
     /* Disconnect docsis LB */
     printf("Disconnecting DOCSIS local bridge\n");
         GWPROV_PRINT(" Disconnecting DOCSIS local bridge\n");
+#if defined (_COSA_BCM_ARM_)
+    connectLocalBridge(FALSE);
+#else
     connectLocalBridge(False);
+#endif
 
     /* This is an SRN, reply */
     printf("Got Docsis INIT - replying\n");
@@ -3328,7 +3484,7 @@ static void LAN_start(void)
 {
     GWPROV_PRINT(" Entry %s \n", __FUNCTION__);
 
-#if defined (_PROPOSED_BUG_FIX_)
+#if defined (_COSA_BCM_ARM_)
     // LAN Start May Be Delayed so refresh modes.
     GWPROV_PRINT("The Previous EROUTERMODE=%d\n",eRouterMode);
     GWPROV_PRINT("The Previous BRIDGE MODE=%d\n",bridge_mode);
@@ -3417,6 +3573,9 @@ int main(int argc, char *argv[])
      int uid = 0;
      uid = getuid();
 #endif
+#if defined (_COSA_BCM_ARM_)
+    macaddr_t  macAddr_bcm;
+#endif
     printf("Started gw_prov_utopia\n");
 
     t2_init("ccsp-gwprovapp");
@@ -3427,7 +3586,6 @@ int main(int argc, char *argv[])
        setenv("LOG4C_RCPATH","/rdklogger",1);
        rdk_logger_init(DEBUG_INI_NAME);
     #endif
-
     GWPROV_PRINT(" Entry gw_prov_utopia\n");
 #if defined(FEATURE_RDKB_WAN_MANAGER)
     GWPROV_PRINT(" Calling /etc/utopia/utopia_init.sh \n");
@@ -3445,14 +3603,21 @@ int main(int argc, char *argv[])
     {
         printf("Already running\n");
         GWPROV_PRINT(" gw_prov_utopia already running. Returning...\n");
+#if !defined (_COSA_BCM_ARM_)
         return 1;
+#endif
     }
 
     printf("Register exception handlers\n");
-    
+#if defined (_COSA_BCM_ARM_)
+    eSafeDevice_Initialize(&macAddr_bcm);
+#else
     registerProcessExceptionHandlers(argv[0]);
+#endif
 
+#if !defined (_COSA_BCM_ARM_)
     GWP_InitDB();
+#endif
 #else
     Cgm_GatewayApiProxy_Init();
     printf("API Proxy RPC handle initialized.");
@@ -3472,7 +3637,10 @@ int main(int argc, char *argv[])
         obj->pGWP_act_DocsisInited = (fpDocsisInited)GWP_act_DocsisInited_callback;
         obj->pGWP_act_ProvEntry = (fpProvEntry)GWP_act_ProvEntry_callback;
         obj->pDocsis_gotEnable = (fpDocsisEnabled)docsis_gotEnable_callback;
-        obj->pGW_Tr069PaSubTLVParse = (fpGW_Tr069PaSubTLVParse)GW_Tr069PaSubTLVParse;
+#if defined(INTEL_PUMA7)
+       obj->pDocsis_GetRATransInterval = docsis_GetRATransInterval_callback;
+#endif
+       obj->pGW_Tr069PaSubTLVParse = (fpGW_Tr069PaSubTLVParse)GW_Tr069PaSubTLVParse;
 #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
 	void* pGW_setTopologyMode = GW_setTopologyMode;
         obj->pGW_SetTopologyMode = (fpGW_SetTopologyMode)pGW_setTopologyMode;

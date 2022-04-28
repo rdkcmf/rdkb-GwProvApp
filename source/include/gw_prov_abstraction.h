@@ -62,7 +62,7 @@
 #define GW_SUBTLV_TR069_CONNREQ_PASSWORD_EXTIF            6
 #define GW_SUBTLV_TR069_ACS_OVERRIDE_EXTIF                7
 
-#if defined(_PLATFORM_RASPBERRYPI_)
+#if defined(_PLATFORM_RASPBERRYPI_) || defined(_COSA_BCM_ARM_)
 typedef enum
 {
     False = 0,
@@ -224,6 +224,9 @@ typedef int (*fpBefCfgfileEntry)();
 typedef int (*fpDocsisInited)();
 typedef int (*fpProvEntry)();
 typedef void (*fpDocsisEnabled)(Uint8);
+#if defined(INTEL_PUMA7)
+typedef void (*fpDocsisRATransInterval)(Uint16);
+#endif
 typedef TlvParseCallbackStatusExtIf_e (*fpGW_Tr069PaSubTLVParse)(Uint8 type, Uint16 length, const Uint8* value);
 #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
 typedef void (*fpGW_SetTopologyMode)(Uint8 type, Uint16 length, const Uint8* value);
@@ -243,6 +246,11 @@ typedef struct __appCallBack
 	fpDocsisInited pGWP_act_DocsisInited;
 	fpProvEntry pGWP_act_ProvEntry;
 	fpDocsisEnabled pDocsis_gotEnable;
+#ifndef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
+    #if defined(INTEL_PUMA7)
+        fpDocsisRATransInterval pDocsis_GetRATransInterval;
+    #endif
+#endif
 	fpGW_Tr069PaSubTLVParse pGW_Tr069PaSubTLVParse;
 #ifdef CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION
 	fpGW_SetTopologyMode pGW_SetTopologyMode;
