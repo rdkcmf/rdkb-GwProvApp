@@ -1004,6 +1004,7 @@ CosaDmlEthWanSetEnable
     }
 #endif
 
+#if !defined (_WNXL11BWL_PRODUCT_REQ_)
     CcspHalExtSw_setEthWanPort ( ETHWAN_DEF_INTF_NUM );
 
     if ( RETURN_OK == CcspHalExtSw_setEthWanEnable( bEnable ) ) 
@@ -1032,6 +1033,7 @@ CosaDmlEthWanSetEnable
             
         }
     }
+#endif
     return RETURN_OK;
 #else
     return RETURN_ERR;
