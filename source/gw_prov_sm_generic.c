@@ -1419,7 +1419,7 @@ static int GWP_act_ProvEntry()
 
     GWPROV_PRINT(" EthWanInterfaceName: %s \n", ethwan_ifname );
 
-#if defined (_BRIDGE_UTILS_BIN_)
+#if defined (_BRIDGE_UTILS_BIN_) && !defined (_WNXL11BWL_PRODUCT_REQ_)
     if ( syscfg_set( NULL, "eth_wan_iface_name", ethwan_ifname ) != 0 )
     {
         GWPROV_PRINT( "syscfg_set failed for eth_wan_iface_name\n" );
