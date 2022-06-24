@@ -2162,6 +2162,11 @@ static void *GWP_sysevent_threadfunc(void *data)
                         sysevent_get(sysevent_fd_gs, sysevent_token_gs, "homesecurity_lan_l3net", buf, sizeof(buf));
                         if (buf[0] != '\0') sysevent_set(sysevent_fd_gs, sysevent_token_gs, "ipv4-up", buf, 0);
 #endif
+
+#if defined(RDK_ONEWIFI) && (defined(_XB6_PRODUCT_REQ_) || defined(_WNXL11BWL_PRODUCT_REQ_))
+        GWPROV_PRINT("CALL VLAN UTIL TO SET UP LNF\n");
+        sysevent_set(sysevent_fd_gs, sysevent_token_gs, "lnf-setup","6", 0);
+#endif 
                     }
 #ifdef MULTILAN_FEATURE
         sysevent_get(sysevent_fd_gs, sysevent_token_gs, "primary_lan_l3net", brlan0_inst, sizeof(brlan0_inst));
