@@ -1878,6 +1878,7 @@ static void *GWP_sysevent_threadfunc(void *data)
 //     if(netids_inited && snmp_inited && !factory_mode) {
 //         LAN_start();
 //     }
+    sysevent_set(sysevent_fd, sysevent_token, "gw_prov-status", "up", 0);
     for (;;)
     {
 #ifdef MULTILAN_FEATURE
