@@ -2200,7 +2200,7 @@ static void *GWP_sysevent_threadfunc(void *data)
                              GWP_DisableERouter();
                         }
                         v_secure_system("/bin/sh /etc/webgui.sh");
-#elif defined(_COSA_INTEL_XB3_ARM_) || defined(_CBR_PRODUCT_REQ_) || defined(INTEL_PUMA7)
+#elif defined(_COSA_INTEL_XB3_ARM_) || defined(_CBR_PRODUCT_REQ_)
                         // For other devices CcspWebUI.service launches the GUI processes
                         startWebUIProcess();
 #else
